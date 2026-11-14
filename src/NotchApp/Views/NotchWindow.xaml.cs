@@ -271,7 +271,7 @@ public partial class NotchWindow : Window
         "dev" => 152,
         "notif" => 34 + NotifListHeight(),
         "apps" => AppsHeight(),
-        _ => _editing ? 132 : 120,
+        _ => 140,
     };
     private double HubHeight(string t) => HubChrome + PaneHeight(t);
     private double PaneW => _cfg.HubWidth - 24;
@@ -386,24 +386,16 @@ public partial class NotchWindow : Window
         PaneNotif.Width = PaneNow.Width = PaneSystem.Width = PaneClip.Width = PaneShelf.Width = PaneDev.Width = PaneApps.Width = PaneW;
         foreach (var b in AllTabButtons) b.Visibility = Visibility.Collapsed;
 
-        TabButtons.ColumnDefinitions.Clear();
+        // tabs in the order Settings gives them
+        TabButtons.Children.Clear();
         Strip.Children.Clear();
-        int col = 0;
         foreach (var t in _cfg.Tabs)
         {
             var b = TabButton(t.Id);
+            TabButtons.Children.Add(b);
             b.Visibility = t.On ? Visibility.Visible : Visibility.Collapsed;
-            if (t.On)
-            {
-                TabButtons.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                Grid.SetColumn(b, col++);
-                Strip.Children.Add(PaneOf(t.Id));
-            }
+            if (t.On) Strip.Children.Add(PaneOf(t.Id));
         }
-        // with many tabs the labels need the room: drop the tab icons when they'd crowd the text
-        bool roomy = (_cfg.HubWidth - 24 - 40 - 4) / Math.Max(1, col) >= 92;
-        foreach (var b in AllTabButtons)
-            if (b.Content is StackPanel sp && sp.Children.Count > 0) sp.Children[0].Visibility = roomy ? Visibility.Visible : Visibility.Collapsed;
         LHub.UpdateLayout();
         SetTab(VisibleTabs().Contains(_tab) ? _tab : VisibleTabs()[0], instant: true);
     }
@@ -416,6 +408,7 @@ public partial class NotchWindow : Window
         int from = vis.IndexOf(_tab), to = vis.IndexOf(t);
         _tab = t;
         double target = -to * PaneW;
+        foreach (var tb in AllTabButtons) ShowTabLabel(tb, (string)tb.Tag == t, instant || !_hub);
         var b = TabButton(t);
         LHub.UpdateLayout();
         TabX.Target = b.TranslatePoint(new Point(0, 0), TrackInner).X;
@@ -457,6 +450,25 @@ public partial class NotchWindow : Window
             EnsureFrames();
         };
         Strip.BeginAnimation(OpacityProperty, outA);
+    }
+
+    /// <summary>The selected tab's name slides out of its icon; the others fold back to just the icon.</summary>
+    private void ShowTabLabel(Button tb, bool on, bool instant)
+    {
+        if (tb.Content is not StackPanel sp || sp.Children.Count < 2 || sp.Children[1] is not Border clip || clip.Child is not TextBlock label) return;
+        label.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        double w = on ? Math.Ceiling(label.DesiredSize.Width) : 0;
+        tb.ToolTip = on ? null : label.Text;
+        if (instant || !SystemParameters.ClientAreaAnimation)
+        {
+            clip.BeginAnimation(WidthProperty, null); clip.Width = w;
+            label.BeginAnimation(OpacityProperty, null); label.Opacity = on ? 1 : 0;
+            return;
+        }
+        var ease = new QuarticEase { EasingMode = EasingMode.EaseOut };
+        clip.BeginAnimation(WidthProperty, new DoubleAnimation(w, TimeSpan.FromMilliseconds(on ? 360 : 260)) { EasingFunction = ease });
+        label.BeginAnimation(OpacityProperty, new DoubleAnimation(on ? 1 : 0, TimeSpan.FromMilliseconds(on ? 260 : 120))
+        { BeginTime = TimeSpan.FromMilliseconds(on ? 80 : 0), EasingFunction = ease });
     }
 
     private void ShowOnlyPane()
@@ -811,6 +823,14 @@ public partial class NotchWindow : Window
             if (Math.Abs(fit.ScaleX - f) > 0.0005) fit.ScaleX = fit.ScaleY = f;
         }
 
+        if (_key == "hub" && LHub.Opacity > 0)
+        {
+            // the pill chases the selected tab while the row reflows around its widening label
+            var sel = TabButton(_tab);
+            double tx = sel.TranslatePoint(new Point(0, 0), TrackInner).X, tw = sel.ActualWidth;
+            if (Math.Abs(tx - TabX.Target) > 0.25) TabX.Target = tx;
+            if (Math.Abs(tw - TabW.Target) > 0.25) TabW.Target = tw;
+        }
         TabIndicatorX.X = TabX.Value;
         TabIndicator.Width = Math.Max(0, TabW.Value);
         StripX.X = Pane.Value;
@@ -908,7 +928,8 @@ public partial class NotchWindow : Window
         var pos = _media.Position;
         var len = _media.Duration;
         SongPos.Text = Fmt(pos);
-        SongLen.Text = Fmt(len);
+        // time left, like iOS; a live stream has no length
+        SongLen.Text = len.TotalSeconds < 1 ? "Live" : "-" + Fmt(len - pos > TimeSpan.Zero ? len - pos : TimeSpan.Zero);
         if (SongBar.Parent is FrameworkElement track && len.TotalSeconds > 0)
             SongBar.Width = Math.Clamp(pos.TotalSeconds / len.TotalSeconds, 0, 1) * track.ActualWidth;
     }

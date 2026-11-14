@@ -12,6 +12,8 @@ public sealed class Icon : FrameworkElement
         ["system"] = ("M8 6h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2v-8a2 2 0 0 1 2 -2z M9 2v4 M15 2v4 M9 18v4 M15 18v4 M2 9h4 M2 15h4 M18 9h4 M18 15h4", false),
         // gear: Feather "settings" (MIT)
         ["gear"] = ("M9 12a3 3 0 1 0 6 0a3 3 0 1 0 -6 0 M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 -2.83 2.83l-.06-.06a1.65 1.65 0 0 0 -1.82-.33 1.65 1.65 0 0 0 -1 1.51V21a2 2 0 0 1 -4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0 -1.82.33l-.06.06a2 2 0 0 1 -2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0 -1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0 -.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0 -1.51 1z", false),
+        ["back"] = ("M11.5 6.5v11l-8.5-5.5z M20.5 6.5v11l-8.5-5.5z", true),
+        ["fwd"] = ("M3.5 6.5v11l8.5-5.5z M12.5 6.5v11l8.5-5.5z", true),
         ["play"] = ("M7 4.5v15l12-7.5z", true),
         ["pause"] = ("M6 4.5h4v15h-4z M14 4.5h4v15h-4z", true),
         ["prev"] = ("M6 5v14 M19 5v14l-11-7z", false),
@@ -81,7 +83,9 @@ public sealed class Icon : FrameworkElement
         dc.PushTransform(new TranslateTransform((ActualWidth - 24 * s) / 2, (ActualHeight - 24 * s) / 2));
         dc.PushTransform(new ScaleTransform(s, s));
         var pen = new Pen(Foreground, StrokeWidth) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
-        dc.DrawGeometry(p.Filled ? Foreground : null, p.Filled ? null : pen, geo);
+        // filled glyphs get a thin round-joined outline in the same colour: softened corners, like SF Symbols
+        var soft = new Pen(Foreground, 1.6) { LineJoin = PenLineJoin.Round };
+        dc.DrawGeometry(p.Filled ? Foreground : null, p.Filled ? soft : pen, geo);
         dc.Pop(); dc.Pop();
     }
 }

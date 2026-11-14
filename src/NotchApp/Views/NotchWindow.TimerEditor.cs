@@ -208,9 +208,7 @@ public partial class NotchWindow
     /// <summary>The editor grows out of the timer card's corner; the row behind it steps back.</summary>
     private void SwapEditor(bool open, bool animate)
     {
-        PaneNow.Height = open ? 132 : 120;
-        NowRow.Height = 120;
-        NowRow.VerticalAlignment = VerticalAlignment.Top;
+        PaneNow.Height = 140;
         TimerEditor.IsHitTestVisible = open;
         NowRow.IsHitTestVisible = !open;
         animate &= SystemParameters.ClientAreaAnimation;
