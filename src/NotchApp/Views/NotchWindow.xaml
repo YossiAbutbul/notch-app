@@ -159,6 +159,9 @@
                 <Button x:Name="TabNow" Style="{StaticResource Tab}" Tag="now" ToolTip="Now">
                   <StackPanel Orientation="Horizontal"><c:Icon Kind="now" Width="16" Height="16"/><Border ClipToBounds="True" Width="0"><TextBlock Text="Now" Margin="7,0,0,0" Opacity="0"/></Border></StackPanel>
                 </Button>
+                <Button x:Name="TabTimer" Style="{StaticResource Tab}" Tag="timer" ToolTip="Timer">
+                  <StackPanel Orientation="Horizontal"><c:Icon Kind="clock" Width="16" Height="16"/><Border ClipToBounds="True" Width="0"><TextBlock Text="Timer" Margin="7,0,0,0" Opacity="0"/></Border></StackPanel>
+                </Button>
                 <Button x:Name="TabNotif" Style="{StaticResource Tab}" Tag="notif" ToolTip="Alerts">
                   <StackPanel Orientation="Horizontal"><c:Icon Kind="bell" Width="16" Height="16"/><Border ClipToBounds="True" Width="0"><TextBlock Text="Alerts" Margin="7,0,0,0" Opacity="0"/></Border></StackPanel>
                 </Button>
@@ -189,44 +192,39 @@
                 <StackPanel.RenderTransform><TranslateTransform x:Name="StripX"/></StackPanel.RenderTransform>
 
                 <!-- Now: music + timer -->
+                <!-- Now: the player, full width -->
                 <Grid x:Name="PaneNow" Width="576" Height="140" VerticalAlignment="Top">
-                <Grid x:Name="NowRow" RenderTransformOrigin="0.5,0.5">
-                  <Grid.RenderTransform><ScaleTransform x:Name="NowRowScale"/></Grid.RenderTransform>
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/><ColumnDefinition Width="8"/><ColumnDefinition Width="266"/>
-                  </Grid.ColumnDefinitions>
-
                   <Border Background="{StaticResource Card}" CornerRadius="20" Padding="12">
                     <Grid>
-                      <!-- like the expanded Dynamic Island: art and title, a full-width scrubber, big glyph controls -->
                       <Grid x:Name="MusicCard">
-                        <Grid.RowDefinitions>
-                          <RowDefinition Height="48"/><RowDefinition Height="12"/><RowDefinition Height="14"/><RowDefinition Height="*"/><RowDefinition Height="32"/>
-                        </Grid.RowDefinitions>
-                        <Grid>
-                          <Grid.ColumnDefinitions><ColumnDefinition Width="48"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                          <Border x:Name="ArtLarge" CornerRadius="10" Background="#33FFFFFF"/>
-                          <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="0,0,10,0">
-                            <TextBlock x:Name="SongTitle" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="14.5" LineHeight="19" LineStackingStrategy="BlockLineHeight" TextTrimming="CharacterEllipsis"/>
-                            <TextBlock x:Name="SongArtist" Foreground="{StaticResource Dim}" FontSize="12.5" LineHeight="17" LineStackingStrategy="BlockLineHeight" TextTrimming="CharacterEllipsis"/>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="116"/><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                        <Border x:Name="ArtLarge" CornerRadius="14" Background="#33FFFFFF"/>
+                        <Grid Grid.Column="2" Margin="0,2,4,0">
+                          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="14"/><RowDefinition Height="8"/><RowDefinition Height="38"/></Grid.RowDefinitions>
+                          <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,12,0">
+                              <TextBlock x:Name="SongTitle" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="17" LineHeight="22" LineStackingStrategy="BlockLineHeight" TextTrimming="CharacterEllipsis"/>
+                              <TextBlock x:Name="SongArtist" Foreground="{StaticResource Dim}" FontSize="13" LineHeight="18" LineStackingStrategy="BlockLineHeight" TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                            <StackPanel x:Name="BarsLarge" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top" Margin="0,2,0,0" Height="18"/>
+                          </Grid>
+                          <Grid Grid.Row="2">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="38"/><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                            <TextBlock x:Name="SongPos" Foreground="{StaticResource Dim}" FontSize="11" VerticalAlignment="Center" Text="0:00"/>
+                            <Border Grid.Column="1" Height="5" CornerRadius="2.5" Background="#29FFFFFF" VerticalAlignment="Center">
+                              <Border x:Name="SongBar" HorizontalAlignment="Left" CornerRadius="2.5" Background="#E6F4F5F8" Width="0"/>
+                            </Border>
+                            <TextBlock x:Name="SongLen" Grid.Column="2" Foreground="{StaticResource Dim}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center" Text="-0:00"/>
+                          </Grid>
+                          <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Center">
+                            <Button x:Name="PrevBtn" Style="{StaticResource Press}" Width="52" Height="38" ToolTip="Previous"><c:Icon Kind="back" Width="22" Height="22"/></Button>
+                            <Button x:Name="PlayBtn" Style="{StaticResource Press}" Width="56" Height="38" Margin="18,0">
+                              <c:Icon x:Name="PlayIcon" Kind="pause" Width="26" Height="26"/>
+                            </Button>
+                            <Button x:Name="NextBtn" Style="{StaticResource Press}" Width="52" Height="38" ToolTip="Next"><c:Icon Kind="fwd" Width="22" Height="22"/></Button>
                           </StackPanel>
-                          <StackPanel x:Name="BarsLarge" Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Height="18"/>
                         </Grid>
-                        <Grid Grid.Row="2">
-                          <Grid.ColumnDefinitions><ColumnDefinition Width="34"/><ColumnDefinition Width="*"/><ColumnDefinition Width="38"/></Grid.ColumnDefinitions>
-                          <TextBlock x:Name="SongPos" Foreground="{StaticResource Dim}" FontSize="11" VerticalAlignment="Center" Text="0:00"/>
-                          <Border Grid.Column="1" Height="4" CornerRadius="2" Background="#29FFFFFF" VerticalAlignment="Center">
-                            <Border x:Name="SongBar" HorizontalAlignment="Left" CornerRadius="2" Background="#E6F4F5F8" Width="0"/>
-                          </Border>
-                          <TextBlock x:Name="SongLen" Grid.Column="2" Foreground="{StaticResource Dim}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center" Text="-0:00"/>
-                        </Grid>
-                        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Center">
-                          <Button x:Name="PrevBtn" Style="{StaticResource Press}" Width="44" Height="32" ToolTip="Previous"><c:Icon Kind="back" Width="20" Height="20"/></Button>
-                          <Button x:Name="PlayBtn" Style="{StaticResource Press}" Width="48" Height="32" Margin="14,0">
-                            <c:Icon x:Name="PlayIcon" Kind="pause" Width="22" Height="22"/>
-                          </Button>
-                          <Button x:Name="NextBtn" Style="{StaticResource Press}" Width="44" Height="32" ToolTip="Next"><c:Icon Kind="fwd" Width="20" Height="20"/></Button>
-                        </StackPanel>
                       </Grid>
                       <StackPanel x:Name="NoMusic" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed">
                         <c:Icon Kind="now" Width="22" Height="22" Foreground="{StaticResource Dim}" HorizontalAlignment="Center"/>
@@ -234,52 +232,57 @@
                       </StackPanel>
                     </Grid>
                   </Border>
-
-                  <!-- timer card -->
-                  <Border Grid.Column="2" Background="{StaticResource Card}" CornerRadius="20" Padding="12" ClipToBounds="True">
-                    <Grid>
-                      <Ellipse x:Name="TimerPool" Width="164" Height="164" Margin="-46,-46,0,0" HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False"/>
-                      <Grid>
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="96"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                        <Grid Width="96" Height="96">
-                          <c:TimerDial x:Name="Dial"/>
-                          <Button x:Name="DialBtn" Style="{StaticResource Press}" Margin="18" ToolTip="Edit timer">
-                            <StackPanel>
-                              <c:RollingText x:Name="DialTime" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="20" HorizontalAlignment="Center"/>
-                              <Grid HorizontalAlignment="Center">
-                                <TextBlock x:Name="DialOf" Foreground="{StaticResource Dim}" FontSize="10" HorizontalAlignment="Center" Text="of 25 min"/>
-                                <TextBlock x:Name="DialEdit" FontSize="10" FontWeight="SemiBold" HorizontalAlignment="Center" Text="Edit" Opacity="0"/>
-                              </Grid>
-                            </StackPanel>
-                          </Button>
-                        </Grid>
-                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                          <Grid Height="14">
-                            <StackPanel Orientation="Horizontal">
-                              <Ellipse x:Name="PhaseDot" Width="6" Height="6" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                              <TextBlock x:Name="PhaseText" FontSize="12" FontWeight="SemiBold" Text="Focus"/>
-                            </StackPanel>
-                            <TextBlock x:Name="PhaseCount" HorizontalAlignment="Right" Foreground="{StaticResource Dim}" FontSize="11"/>
-                          </Grid>
-                          <TextBlock x:Name="EndsAt" Foreground="{StaticResource Dim}" FontSize="12" Margin="0,6,0,0"/>
-                          <StackPanel x:Name="Dots" Orientation="Horizontal" Height="10" Margin="0,6,0,0"/>
-                          <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                            <Button x:Name="TimerPlay" Style="{StaticResource Press}" Width="34" Height="34">
-                              <c:Icon x:Name="TimerPlayIcon" Kind="play" Width="14" Height="14" Foreground="#15110A"/>
-                            </Button>
-                            <Button x:Name="TimerAdd" Style="{StaticResource Press}" Height="30" Padding="10,0" Margin="4,0" Background="{StaticResource Faint}" FontWeight="SemiBold" FontSize="11.5" Content="+5"/>
-                            <Button x:Name="TimerReset" Style="{StaticResource Press}" Width="30" Height="30" Background="{StaticResource Faint}" ToolTip="Restart this session">
-                              <c:Icon Kind="reset" Width="14" Height="14" StrokeWidth="2"/>
-                            </Button>
-                          </StackPanel>
-                        </StackPanel>
-                      </Grid>
-                    </Grid>
-                  </Border>
                 </Grid>
 
+                <!-- Timer: the dial, where the session stands, and its controls; the editor grows out of the dial -->
+                <Grid x:Name="PaneTimer" Width="576" Height="140" VerticalAlignment="Top">
+                  <Grid x:Name="TimerRow" RenderTransformOrigin="0.12,0.5">
+                    <Grid.RenderTransform><ScaleTransform x:Name="TimerRowScale"/></Grid.RenderTransform>
+                    <Border Background="{StaticResource Card}" CornerRadius="20" Padding="10,10,16,10" ClipToBounds="True">
+                      <Grid>
+                        <Ellipse x:Name="TimerPool" Width="260" Height="260" Margin="-70,-70,0,0" HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False"/>
+                        <Grid>
+                          <Grid.ColumnDefinitions><ColumnDefinition Width="120"/><ColumnDefinition Width="22"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                          <Grid Width="120" Height="120">
+                            <c:TimerDial x:Name="Dial"/>
+                            <Button x:Name="DialBtn" Style="{StaticResource Press}" Margin="22" ToolTip="Edit timer">
+                              <StackPanel>
+                                <c:RollingText x:Name="DialTime" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="25" HorizontalAlignment="Center"/>
+                                <Grid HorizontalAlignment="Center">
+                                  <TextBlock x:Name="DialOf" Foreground="{StaticResource Dim}" FontSize="11" HorizontalAlignment="Center" Text="of 25 min"/>
+                                  <TextBlock x:Name="DialEdit" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center" Text="Edit" Opacity="0"/>
+                                </Grid>
+                              </StackPanel>
+                            </Button>
+                          </Grid>
+                          <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal">
+                              <Ellipse x:Name="PhaseDot" Width="7" Height="7" Margin="0,0,7,0" VerticalAlignment="Center"/>
+                              <TextBlock x:Name="PhaseText" FontSize="13" FontWeight="SemiBold" Text="Focus"/>
+                            </StackPanel>
+                            <TextBlock x:Name="EndsAt" FontFamily="{StaticResource Display}" FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource Dim}" Margin="0,4,0,0" LineHeight="26" LineStackingStrategy="BlockLineHeight"/>
+                            <TextBlock x:Name="PhaseCount" Foreground="{StaticResource Dim}" FontSize="12"/>
+                            <StackPanel x:Name="Dots" Orientation="Horizontal" Height="6" Margin="0,10,0,0"/>
+                          </StackPanel>
+                          <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button x:Name="TimerReset" Style="{StaticResource Press}" Width="40" Height="40" Background="{StaticResource Faint}" ToolTip="Restart this session">
+                              <c:Icon Kind="reset" Width="16" Height="16" StrokeWidth="2"/>
+                            </Button>
+                            <Button x:Name="TimerAdd" Style="{StaticResource Press}" Height="40" Padding="15,0" Margin="8,0,0,0" Background="{StaticResource Faint}" FontWeight="SemiBold" FontSize="13" Content="+5" ToolTip="Add 5 minutes"/>
+                            <Button x:Name="TimerEditBtn" Style="{StaticResource Press}" Width="40" Height="40" Margin="8,0,14,0" Background="{StaticResource Faint}" ToolTip="Edit lengths">
+                              <c:Icon Kind="sliders" Width="16" Height="16" StrokeWidth="2"/>
+                            </Button>
+                            <Button x:Name="TimerPlay" Style="{StaticResource Press}" Width="54" Height="54">
+                              <c:Icon x:Name="TimerPlayIcon" Kind="play" Width="20" Height="20" Foreground="#15110A"/>
+                            </Button>
+                          </StackPanel>
+                        </Grid>
+                      </Grid>
+                    </Border>
+                  </Grid>
+
                 <!-- timer editor: grows out of the timer card and takes over the row while open -->
-                <Grid x:Name="TimerEditor" Opacity="0" IsHitTestVisible="False" RenderTransformOrigin="0.9,0.1">
+                <Grid x:Name="TimerEditor" Opacity="0" IsHitTestVisible="False" RenderTransformOrigin="0.12,0.5">
                   <Grid.RenderTransform><ScaleTransform x:Name="TimerEditorScale" ScaleX="0.96" ScaleY="0.96"/></Grid.RenderTransform>
                   <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
 

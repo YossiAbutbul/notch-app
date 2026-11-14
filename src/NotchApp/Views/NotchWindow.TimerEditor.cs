@@ -46,6 +46,7 @@ public partial class NotchWindow
         EditDone.Click += (_, _) => CloseTimerEditor();
         DialBtn.ToolTip = "Edit timer";
         DialBtn.Click += (_, _) => OpenTimerEditor();
+        TimerEditBtn.Click += (_, _) => OpenTimerEditor();
         // hovering the time says what a click does: "of 25 min" turns into "Edit"
         DialBtn.MouseEnter += (_, _) => DialHint(true);
         DialBtn.MouseLeave += (_, _) => DialHint(false);
@@ -187,8 +188,8 @@ public partial class NotchWindow
 
     private void OpenTimerEditor()
     {
-        if (!_hub) OpenHub("sticky", "now");
-        else { _openMode = "sticky"; if (_tab != "now") SetTab("now"); }
+        if (!_hub) OpenHub("sticky", "timer");
+        else { _openMode = "sticky"; if (_tab != "timer") SetTab("timer"); }
         Ruler.Params = _every;
         RefreshEditor();
         if (_editing) return;
@@ -208,9 +209,8 @@ public partial class NotchWindow
     /// <summary>The editor grows out of the timer card's corner; the row behind it steps back.</summary>
     private void SwapEditor(bool open, bool animate)
     {
-        PaneNow.Height = 140;
         TimerEditor.IsHitTestVisible = open;
-        NowRow.IsHitTestVisible = !open;
+        TimerRow.IsHitTestVisible = !open;
         animate &= SystemParameters.ClientAreaAnimation;
         void To(UIElement el, DependencyProperty p, double v, int ms, int delay = 0)
         {
@@ -227,7 +227,7 @@ public partial class NotchWindow
         }
         To(TimerEditor, OpacityProperty, open ? 1 : 0, open ? 240 : 160, open ? 40 : 0);
         Scale(TimerEditorScale, open ? 1 : 0.96, 340);
-        To(NowRow, OpacityProperty, open ? 0 : 1, open ? 160 : 240, open ? 0 : 40);
-        Scale(NowRowScale, open ? 0.98 : 1, 340);
+        To(TimerRow, OpacityProperty, open ? 0 : 1, open ? 160 : 240, open ? 0 : 40);
+        Scale(TimerRowScale, open ? 0.98 : 1, 340);
     }
 }

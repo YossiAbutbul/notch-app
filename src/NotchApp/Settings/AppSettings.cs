@@ -80,7 +80,7 @@ public sealed class AppSettings
     public List<AppEntry> Apps { get; set; } = NotchApp.Services.AppLauncher.Defaults();
 
     public static List<TabSetting> DefaultTabs() =>
-        [new() { Id = "now" }, new() { Id = "notif" }, new() { Id = "clip" }, new() { Id = "shelf" }, new() { Id = "dev" }, new() { Id = "apps" }, new() { Id = "system" }];
+        [new() { Id = "now" }, new() { Id = "timer" }, new() { Id = "notif" }, new() { Id = "clip" }, new() { Id = "shelf" }, new() { Id = "dev" }, new() { Id = "apps" }, new() { Id = "system" }];
 
     public static Dictionary<string, bool> DefaultLive() => new()
     {

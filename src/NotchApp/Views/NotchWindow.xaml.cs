@@ -349,9 +349,9 @@ public partial class NotchWindow : Window
         (Color c, double a) = k switch
         {
             "toast" => (_toast!.Glow, _cfg.Glow * 0.8),
-            "hub" => (_tab == "now" && _editing ? FocusTimer.ColorOf(Phase.Focus)
-                      : _tab == "now" && act == "music" ? _media.ArtColor
-                      : _tab == "now" && act == "timer" ? FocusTimer.ColorOf(_timer.Phase)
+            "hub" => (_tab == "timer" && _editing ? FocusTimer.ColorOf(Phase.Focus)
+                      : _tab == "timer" ? FocusTimer.ColorOf(_timer.Phase)
+                      : _tab == "now" && _media.HasSession ? _media.ArtColor
                       : Color.FromRgb(170, 185, 255), _cfg.Glow * 0.45),
             "music" => (_media.ArtColor, _cfg.Glow * (_media.IsPlaying ? 1 : 0.35)),
             "timer" => (FocusTimer.ColorOf(_timer.Phase), _cfg.Glow * 0.6),
@@ -370,20 +370,23 @@ public partial class NotchWindow : Window
     {
         var v = VisibleTabs();
         if (_cfg.DefaultTab != "auto" && v.Contains(_cfg.DefaultTab)) return _cfg.DefaultTab;
-        if (Activity() != "idle" && v.Contains("now")) return "now";
+        // open where the action is: the timer while it runs, the player while something plays
+        var act = Activity();
+        if (act == "timer" && v.Contains("timer")) return "timer";
+        if (act == "music" && v.Contains("now")) return "now";
         return v.Contains(_tab) ? _tab : v[0];
     }
 
-    private Button TabButton(string id) => id switch { "system" => TabSystem, "notif" => TabNotif, "clip" => TabClip, "shelf" => TabShelf, "dev" => TabDev, "apps" => TabApps, _ => TabNow };
-    private FrameworkElement PaneOf(string id) => id switch { "system" => PaneSystem, "notif" => PaneNotif, "clip" => PaneClip, "shelf" => PaneShelf, "dev" => PaneDev, "apps" => PaneApps, _ => PaneNow };
-    private IEnumerable<Button> AllTabButtons => [TabNow, TabNotif, TabClip, TabShelf, TabDev, TabApps, TabSystem];
+    private Button TabButton(string id) => id switch { "system" => TabSystem, "timer" => TabTimer, "notif" => TabNotif, "clip" => TabClip, "shelf" => TabShelf, "dev" => TabDev, "apps" => TabApps, _ => TabNow };
+    private FrameworkElement PaneOf(string id) => id switch { "system" => PaneSystem, "timer" => PaneTimer, "notif" => PaneNotif, "clip" => PaneClip, "shelf" => PaneShelf, "dev" => PaneDev, "apps" => PaneApps, _ => PaneNow };
+    private IEnumerable<Button> AllTabButtons => [TabNow, TabTimer, TabNotif, TabClip, TabShelf, TabDev, TabApps, TabSystem];
 
     /// <summary>Order and visibility of tabs and panes, from Settings → Hub & activities.</summary>
     private void LayoutHub()
     {
         LHub.Width = _cfg.HubWidth;
         Viewport.Width = PaneW;
-        PaneNotif.Width = PaneNow.Width = PaneSystem.Width = PaneClip.Width = PaneShelf.Width = PaneDev.Width = PaneApps.Width = PaneW;
+        PaneTimer.Width = PaneNotif.Width = PaneNow.Width = PaneSystem.Width = PaneClip.Width = PaneShelf.Width = PaneDev.Width = PaneApps.Width = PaneW;
         foreach (var b in AllTabButtons) b.Visibility = Visibility.Collapsed;
 
         // tabs in the order Settings gives them
@@ -404,7 +407,7 @@ public partial class NotchWindow : Window
     {
         var vis = VisibleTabs();
         if (!vis.Contains(t)) t = vis[0];
-        if (t != "now") CloseTimerEditor(animate: false);
+        if (t != "timer") CloseTimerEditor(animate: false);
         int from = vis.IndexOf(_tab), to = vis.IndexOf(t);
         _tab = t;
         double target = -to * PaneW;
@@ -793,7 +796,7 @@ public partial class NotchWindow : Window
                        && TabX.IsSettled && TabW.IsSettled && Pane.IsSettled && VolFill.IsSettled && Swipe.IsSettled);
         bool glow = Math.Abs(_glowCurA - _glowA) > 0.004 || Dist(_glowCur, _glowTarget) > 3;
         bool live = (_key == "music" && _media.IsPlaying)
-                 || (_key == "hub" && _tab == "now" && (_media.IsPlaying || _timer.Running))
+                 || (_key == "hub" && ((_tab == "now" && _media.IsPlaying) || (_tab == "timer" && _timer.Running)))
                  || (_key == "timer" && _timer.Running && _timer.Left < 10);
         return springs || glow || live || _drag != null;
     }
@@ -860,7 +863,7 @@ public partial class NotchWindow : Window
                     : 4;
         }
 
-        if (_key == "hub" && _tab == "now")
+        if (_key == "hub" && _tab == "timer")
         {
             Dial.Fraction = _timer.Total > 0 ? _timer.Left / _timer.Total : 0;
             Dial.Urgency = _timer.Running && _timer.Left < 10 ? 0.5 + 0.5 * Math.Sin(_clock * Math.PI * 4) : 0;
@@ -949,9 +952,9 @@ public partial class NotchWindow : Window
         PhaseText.Text = FocusTimer.Label(_timer.Phase);
         PhaseCount.Text = _timer.Phase switch
         {
-            Phase.Focus => $"{_timer.Session} of {_timer.Sessions}",
-            Phase.Break => $"then {Math.Min(_timer.Session + 1, _timer.Sessions)} of {_timer.Sessions}",
-            _ => "round done",
+            Phase.Focus => $"Session {_timer.Session} of {_timer.Sessions}",
+            Phase.Break => $"Session {Math.Min(_timer.Session + 1, _timer.Sessions)} of {_timer.Sessions} is next",
+            _ => "Round done. Nice work.",
         };
         DialOf.Text = $"of {_timer.Minutes(_timer.Phase)} min";
         DialEdit.Foreground = brush;
@@ -988,7 +991,7 @@ public partial class NotchWindow : Window
             EndsAt.Inlines.Add(new System.Windows.Documents.Run("Ends at "));
             EndsAt.Inlines.Add(new System.Windows.Documents.Run(_timer.EndsAt.ToString("HH:mm")) { Foreground = Brushes.WhiteSmoke, FontWeight = FontWeights.SemiBold });
         }
-        else EndsAt.Inlines.Add(new System.Windows.Documents.Run("Paused"));
+        else EndsAt.Inlines.Add(new System.Windows.Documents.Run(_timer.Active ? "Paused" : "Ready") { Foreground = Brushes.WhiteSmoke });
     }
 
     private void UpdateSystemUI()
@@ -1114,7 +1117,7 @@ public partial class NotchWindow : Window
             (1.5, () => OpenHub("sticky", "now")),
             (3.0, () => SetTab("clip")),
             (4.0, () => SetTab("dev")),
-            (5.0, () => SetTab("now")),
+            (5.0, () => SetTab("timer")),
             (6.0, CloseHub),
             (7.5, () => OnNotification(new NotifItem(1, "Messages", "", "Maya", "Are we still on for 7?", DateTimeOffset.Now, null, Color.FromRgb(0x34, 0xC7, 0x6F)))),
             (11.5, () => ShowToast(new("volume", 260, Colors.White, "speaker", Color.FromArgb(0x30, 255, 255, 255), Colors.White, "Volume", "48", Colors.White, true, 1800))),

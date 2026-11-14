@@ -34,7 +34,7 @@ public partial class SettingsWindow : Window
 
     private static readonly Dictionary<string, string> TabNames = new()
     {
-        ["now"] = "Now (music and timer)", ["notif"] = "Alerts (notifications)", ["clip"] = "Clipboard", ["shelf"] = "Shelf", ["dev"] = "Devices", ["apps"] = "Apps", ["system"] = "System",
+        ["now"] = "Now playing", ["timer"] = "Focus timer", ["notif"] = "Alerts (notifications)", ["clip"] = "Clipboard", ["shelf"] = "Shelf", ["dev"] = "Devices", ["apps"] = "Apps", ["system"] = "System",
     };
     private static readonly (string Key, string Label, string Desc)[] LiveItems =
     [
