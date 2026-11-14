@@ -544,7 +544,7 @@ public partial class NotchWindow : Window
     private void OnCharger(bool plugged)
     {
         if (!plugged || _stats.BatteryPercent is not { } pct) return;
-        var green = Color.FromRgb(0x34, 0xC7, 0x6F);
+        var green = Color.FromRgb(0x30, 0xD1, 0x58);
         ShowToast(new("charge", 236, green, "bolt", Colors.Transparent, green, "Charging", $"{pct}%", green, false, 2300));
     }
 
@@ -952,28 +952,17 @@ public partial class NotchWindow : Window
         PhaseText.Text = FocusTimer.Label(_timer.Phase);
         PhaseCount.Text = _timer.Phase switch
         {
-            Phase.Focus => $"Session {_timer.Session} of {_timer.Sessions}",
-            Phase.Break => $"Session {Math.Min(_timer.Session + 1, _timer.Sessions)} of {_timer.Sessions} is next",
-            _ => "Round done. Nice work.",
+            Phase.Focus => $"  ·  {_timer.Session} of {_timer.Sessions}",
+            Phase.Break => $"  ·  then {Math.Min(_timer.Session + 1, _timer.Sessions)} of {_timer.Sessions}",
+            _ => "  ·  round done",
         };
-        DialOf.Text = $"of {_timer.Minutes(_timer.Phase)} min";
-        DialEdit.Foreground = brush;
+        // like the Clock app: white digits, dimmed while paused; colour only where it means something
+        DialTime.Foreground = Brushes.WhiteSmoke;
         DialTime.Opacity = _timer.Running ? 1 : 0.5;
         TimerPlay.Background = brush;
+        TimerPlayIcon.Foreground = new SolidColorBrush(Color.FromRgb(0x1A, 0x10, 0x00));
         TimerPlayIcon.Kind = _timer.Running ? "pause" : "play";
-        TimerPool.Fill = new RadialGradientBrush(Color.FromArgb(56, c.R, c.G, c.B), Color.FromArgb(0, c.R, c.G, c.B));
-
-        Dots.Children.Clear();
-        for (int i = 1; i <= _timer.Sessions; i++)
-        {
-            bool cur = i == _timer.Session && _timer.Phase == Phase.Focus;
-            bool done = i < _timer.Session || (i == _timer.Session && _timer.Phase != Phase.Focus) || _timer.Phase == Phase.LongBreak;
-            Dots.Children.Add(new Border
-            {
-                Width = cur ? 16 : 6, Height = 6, CornerRadius = new CornerRadius(3), Margin = new Thickness(0, 0, 4, 0),
-                Background = cur ? brush : done ? new SolidColorBrush(Color.FromArgb(128, c.R, c.G, c.B)) : (Brush)FindResource("Faint"),
-            });
-        }
+        TimerPlay.ToolTip = _timer.Running ? "Pause" : _timer.Active ? "Resume" : "Start";
         UpdateTimerText();
         Apply();
     }
@@ -991,7 +980,8 @@ public partial class NotchWindow : Window
             EndsAt.Inlines.Add(new System.Windows.Documents.Run("Ends at "));
             EndsAt.Inlines.Add(new System.Windows.Documents.Run(_timer.EndsAt.ToString("HH:mm")) { Foreground = Brushes.WhiteSmoke, FontWeight = FontWeights.SemiBold });
         }
-        else EndsAt.Inlines.Add(new System.Windows.Documents.Run(_timer.Active ? "Paused" : "Ready") { Foreground = Brushes.WhiteSmoke });
+        else if (_timer.Active) EndsAt.Inlines.Add(new System.Windows.Documents.Run("Paused"));
+        else EndsAt.Inlines.Add(new System.Windows.Documents.Run($"{_timer.Minutes(_timer.Phase)} min {FocusTimer.Label(_timer.Phase).ToLowerInvariant()}"));
     }
 
     private void UpdateSystemUI()
@@ -1029,7 +1019,7 @@ public partial class NotchWindow : Window
         UpdateSystemUI();
         FreeMemBtn.Content = gb >= 0.05 ? $"Freed {gb:0.0} GB" : "Already lean";
         SysFoot.Text = "Idle apps gave back memory they weren't using.";
-        var green = Color.FromRgb(0x34, 0xC7, 0x6F);
+        var green = Color.FromRgb(0x30, 0xD1, 0x58);
         ShowToast(new("memory", 300, green, "spark", green, Colors.White, $"Freed {gb:0.0} GB from idle apps", "", Colors.White, false, 2300));
         await Task.Delay(2500);
         FreeMemBtn.Content = "Free up memory";
@@ -1082,7 +1072,7 @@ public partial class NotchWindow : Window
         }
         else Align();
         _timer.SettingsChanged();
-        Ruler.Params = _every;
+        foreach (var w in new[] { FocusWheel, BreakWheel, LongWheel }) w.Params = _every;
         RefreshEditor();
         if (_hub && _tab == "apps") RenderApps();
         if (!_cfg.HideInFullscreen && _hidden) { _hidden = false; Visibility = Visibility.Visible; }
@@ -1119,7 +1109,7 @@ public partial class NotchWindow : Window
             (4.0, () => SetTab("dev")),
             (5.0, () => SetTab("timer")),
             (6.0, CloseHub),
-            (7.5, () => OnNotification(new NotifItem(1, "Messages", "", "Maya", "Are we still on for 7?", DateTimeOffset.Now, null, Color.FromRgb(0x34, 0xC7, 0x6F)))),
+            (7.5, () => OnNotification(new NotifItem(1, "Messages", "", "Maya", "Are we still on for 7?", DateTimeOffset.Now, null, Color.FromRgb(0x30, 0xD1, 0x58)))),
             (11.5, () => ShowToast(new("volume", 260, Colors.White, "speaker", Color.FromArgb(0x30, 255, 255, 255), Colors.White, "Volume", "48", Colors.White, true, 1800))),
         };
         foreach (var (at, act) in steps)

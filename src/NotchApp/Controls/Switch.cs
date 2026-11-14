@@ -13,7 +13,7 @@ public sealed class Switch : Border
     private readonly TranslateTransform _x = new();
     private bool _on, _down;
     public event Action<bool>? Toggled;
-    private static readonly Color OnColor = Color.FromRgb(0x34, 0xC7, 0x6F), OffColor = Color.FromArgb(0x24, 0xFF, 0xFF, 0xFF);
+    private static readonly Color OnColor = Color.FromRgb(0x30, 0xD1, 0x58), OffColor = Color.FromArgb(0x24, 0xFF, 0xFF, 0xFF);
 
     public Switch()
     {

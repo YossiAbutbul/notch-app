@@ -234,89 +234,84 @@
                   </Border>
                 </Grid>
 
-                <!-- Timer: the dial, where the session stands, and its controls; the editor grows out of the dial -->
+                <!-- Timer: like the iPhone's timer Live Activity. Round tinted controls on the left (the play button wears the
+                     progress ring), big light digits on the right. The editor replaces it in place. -->
                 <Grid x:Name="PaneTimer" Width="576" Height="140" VerticalAlignment="Top">
-                  <Grid x:Name="TimerRow" RenderTransformOrigin="0.12,0.5">
+                  <Grid x:Name="TimerRow" RenderTransformOrigin="0.5,0.5">
                     <Grid.RenderTransform><ScaleTransform x:Name="TimerRowScale"/></Grid.RenderTransform>
-                    <Border Background="{StaticResource Card}" CornerRadius="20" Padding="10,10,16,10" ClipToBounds="True">
+                    <Border Background="{StaticResource Card}" CornerRadius="20" Padding="22,0,24,0" ClipToBounds="True">
                       <Grid>
-                        <Ellipse x:Name="TimerPool" Width="260" Height="260" Margin="-70,-70,0,0" HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False"/>
                         <Grid>
-                          <Grid.ColumnDefinitions><ColumnDefinition Width="120"/><ColumnDefinition Width="22"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                          <Grid Width="120" Height="120">
-                            <c:TimerDial x:Name="Dial"/>
-                            <Button x:Name="DialBtn" Style="{StaticResource Press}" Margin="22" ToolTip="Edit timer">
-                              <StackPanel>
-                                <c:RollingText x:Name="DialTime" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="25" HorizontalAlignment="Center"/>
-                                <Grid HorizontalAlignment="Center">
-                                  <TextBlock x:Name="DialOf" Foreground="{StaticResource Dim}" FontSize="11" HorizontalAlignment="Center" Text="of 25 min"/>
-                                  <TextBlock x:Name="DialEdit" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center" Text="Edit" Opacity="0"/>
-                                </Grid>
-                              </StackPanel>
+                          <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Grid Width="64" Height="64">
+                              <c:ProgressRing x:Name="Dial" Thickness="3.5"/>
+                              <Button x:Name="TimerPlay" Style="{StaticResource Press}" Width="52" Height="52" ToolTip="Start">
+                                <c:Icon x:Name="TimerPlayIcon" Kind="play" Width="20" Height="20"/>
+                              </Button>
+                            </Grid>
+                            <Button x:Name="TimerReset" Style="{StaticResource Press}" Width="52" Height="52" Margin="12,0,0,0" Background="#2C2C2E" ToolTip="Restart this session">
+                              <c:Icon Kind="reset" Width="18" Height="18" StrokeWidth="2"/>
                             </Button>
-                          </Grid>
-                          <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                            <StackPanel Orientation="Horizontal">
+                            <Button x:Name="TimerAdd" Style="{StaticResource Press}" Width="52" Height="52" Margin="10,0,0,0" Background="#2C2C2E" ToolTip="Add 5 minutes">
+                              <TextBlock Text="+5" FontFamily="{StaticResource Display}" FontSize="16" FontWeight="SemiBold"/>
+                            </Button>
+                            <Button x:Name="TimerEditBtn" Style="{StaticResource Press}" Width="52" Height="52" Margin="10,0,0,0" Background="#2C2C2E" ToolTip="Edit lengths">
+                              <c:Icon Kind="sliders" Width="18" Height="18" StrokeWidth="2"/>
+                            </Button>
+                          </StackPanel>
+                          <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,4,2">
                               <Ellipse x:Name="PhaseDot" Width="7" Height="7" Margin="0,0,7,0" VerticalAlignment="Center"/>
                               <TextBlock x:Name="PhaseText" FontSize="13" FontWeight="SemiBold" Text="Focus"/>
+                              <TextBlock x:Name="PhaseCount" FontSize="13" Foreground="{StaticResource Dim}"/>
                             </StackPanel>
-                            <TextBlock x:Name="EndsAt" FontFamily="{StaticResource Display}" FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource Dim}" Margin="0,4,0,0" LineHeight="26" LineStackingStrategy="BlockLineHeight"/>
-                            <TextBlock x:Name="PhaseCount" Foreground="{StaticResource Dim}" FontSize="12"/>
-                            <StackPanel x:Name="Dots" Orientation="Horizontal" Height="6" Margin="0,10,0,0"/>
-                          </StackPanel>
-                          <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
-                            <Button x:Name="TimerReset" Style="{StaticResource Press}" Width="40" Height="40" Background="{StaticResource Faint}" ToolTip="Restart this session">
-                              <c:Icon Kind="reset" Width="16" Height="16" StrokeWidth="2"/>
+                            <Button x:Name="DialBtn" Style="{StaticResource Press}" HorizontalAlignment="Right" Padding="8,0,4,0" Height="62" ToolTip="Edit timer">
+                              <c:RollingText x:Name="DialTime" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="50"/>
                             </Button>
-                            <Button x:Name="TimerAdd" Style="{StaticResource Press}" Height="40" Padding="15,0" Margin="8,0,0,0" Background="{StaticResource Faint}" FontWeight="SemiBold" FontSize="13" Content="+5" ToolTip="Add 5 minutes"/>
-                            <Button x:Name="TimerEditBtn" Style="{StaticResource Press}" Width="40" Height="40" Margin="8,0,14,0" Background="{StaticResource Faint}" ToolTip="Edit lengths">
-                              <c:Icon Kind="sliders" Width="16" Height="16" StrokeWidth="2"/>
-                            </Button>
-                            <Button x:Name="TimerPlay" Style="{StaticResource Press}" Width="54" Height="54">
-                              <c:Icon x:Name="TimerPlayIcon" Kind="play" Width="20" Height="20" Foreground="#15110A"/>
-                            </Button>
+                            <TextBlock x:Name="EndsAt" HorizontalAlignment="Right" FontSize="13" Foreground="{StaticResource Dim}" Margin="0,6,4,0"/>
                           </StackPanel>
                         </Grid>
                       </Grid>
                     </Border>
                   </Grid>
 
-                <!-- timer editor: grows out of the timer card and takes over the row while open -->
-                <Grid x:Name="TimerEditor" Opacity="0" IsHitTestVisible="False" RenderTransformOrigin="0.12,0.5">
-                  <Grid.RenderTransform><ScaleTransform x:Name="TimerEditorScale" ScaleX="0.96" ScaleY="0.96"/></Grid.RenderTransform>
-                  <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-
-                  <!-- left: the value, a minute ruler you scrub like a watch crown, quick picks -->
-                  <Border Background="{StaticResource Card}" CornerRadius="20" ClipToBounds="True">
-                    <Grid>
-                      <Ellipse x:Name="EditPool" Width="220" Height="140" Margin="0,-60,0,0" HorizontalAlignment="Center" VerticalAlignment="Top" IsHitTestVisible="False"/>
-                      <Grid Margin="16,0,16,0" VerticalAlignment="Center">
-                        <Grid.RowDefinitions><RowDefinition Height="30"/><RowDefinition Height="8"/><RowDefinition Height="34"/><RowDefinition Height="8"/><RowDefinition Height="24"/></Grid.RowDefinitions>
-                        <Grid>
-                          <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Ellipse x:Name="EditDot" Width="6" Height="6" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="EditLabel" FontSize="12" FontWeight="SemiBold" Text="Focus"/>
-                          </StackPanel>
-                          <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                            <c:RollingText x:Name="EditValue" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="30" VerticalAlignment="Bottom"/>
-                            <TextBlock Text="min" Foreground="{StaticResource Dim}" FontSize="12" FontWeight="SemiBold" Margin="5,0,0,0" VerticalAlignment="Bottom"/>
-                          </StackPanel>
-                          <Button x:Name="EditDone" Grid.Column="2" Style="{StaticResource Press}" Width="28" Height="28" HorizontalAlignment="Right" ToolTip="Done">
-                            <c:Icon Kind="check" Width="15" Height="15" StrokeWidth="2.4" Foreground="#15110A"/>
-                          </Button>
+                  <!-- editor: iOS picker wheels on one shared band for the three lengths; sessions, auto-start and Done beside them -->
+                  <Grid x:Name="TimerEditor" Opacity="0" IsHitTestVisible="False" RenderTransformOrigin="0.5,0.5">
+                    <Grid.RenderTransform><ScaleTransform x:Name="TimerEditorScale" ScaleX="0.97" ScaleY="0.97"/></Grid.RenderTransform>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="8"/><ColumnDefinition Width="200"/></Grid.ColumnDefinitions>
+                    <Border Background="{StaticResource Card}" CornerRadius="20" ClipToBounds="True">
+                      <Grid Margin="8,8,8,4">
+                        <Grid.RowDefinitions><RowDefinition Height="18"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                        <UniformGrid Rows="1">
+                          <TextBlock x:Name="CapFocus" Text="Focus" FontSize="11.5" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                          <TextBlock x:Name="CapBreak" Text="Break" FontSize="11.5" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                          <TextBlock x:Name="CapLong" Text="Long break" FontSize="11.5" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                        </UniformGrid>
+                        <Grid Grid.Row="1">
+                          <Border Height="28" CornerRadius="9" Background="#1FFFFFFF" VerticalAlignment="Center"/>
+                          <UniformGrid Rows="1">
+                            <UniformGrid.OpacityMask>
+                              <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Color="Transparent" Offset="0"/><GradientStop Color="Black" Offset="0.3"/>
+                                <GradientStop Color="Black" Offset="0.7"/><GradientStop Color="Transparent" Offset="1"/>
+                              </LinearGradientBrush>
+                            </UniformGrid.OpacityMask>
+                            <c:WheelPicker x:Name="FocusWheel" Min="1" Max="180"/>
+                            <c:WheelPicker x:Name="BreakWheel" Min="1" Max="30"/>
+                            <c:WheelPicker x:Name="LongWheel" Min="5" Max="60" Step="5"/>
+                          </UniformGrid>
                         </Grid>
-                        <c:MinuteRuler x:Name="Ruler" Grid.Row="2"/>
-                        <UniformGrid x:Name="Presets" Grid.Row="4" Rows="1" Margin="-2,0"/>
                       </Grid>
-                    </Grid>
-                  </Border>
-
-                  <!-- right: a settings list with hairlines and capsule steppers -->
-                  <Border Grid.Column="2" Background="{StaticResource Card}" CornerRadius="20" Padding="16,4">
-                    <StackPanel x:Name="EditRows" VerticalAlignment="Center"/>
-                  </Border>
-                </Grid>
+                    </Border>
+                    <Border Grid.Column="2" Background="{StaticResource Card}" CornerRadius="20" Padding="14,10,14,12">
+                      <Grid>
+                        <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                        <StackPanel x:Name="EditRows" VerticalAlignment="Center"/>
+                        <Button x:Name="EditDone" Grid.Row="1" Style="{StaticResource Press}" Height="34" FontSize="13.5" FontWeight="SemiBold" Foreground="#15110A" Content="Done"/>
+                      </Grid>
+                    </Border>
+                  </Grid>
                 </Grid>
 
                 <!-- Alerts: notifications from other apps -->
@@ -392,7 +387,7 @@
                         <Grid DockPanel.Dock="Top"><TextBlock Style="{StaticResource Label}" Text="CPU"/><TextBlock x:Name="CpuCores" Style="{StaticResource Label}" HorizontalAlignment="Right"/></Grid>
                         <TextBlock x:Name="CpuValue" DockPanel.Dock="Top" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="22" Margin="0,6,0,0" Text="0%"/>
                         <Canvas x:Name="CpuSpark" Height="26" VerticalAlignment="Bottom" ClipToBounds="True">
-                          <Polyline x:Name="CpuLine" Stroke="#3D8BFF" StrokeThickness="1.6" StrokeLineJoin="Round"/>
+                          <Polyline x:Name="CpuLine" Stroke="#0A84FF" StrokeThickness="1.6" StrokeLineJoin="Round"/>
                         </Canvas>
                       </DockPanel>
                     </Border>
@@ -401,13 +396,13 @@
                         <Grid DockPanel.Dock="Top"><TextBlock Style="{StaticResource Label}" Text="Memory"/><TextBlock x:Name="MemPct" Style="{StaticResource Label}" HorizontalAlignment="Right"/></Grid>
                         <TextBlock x:Name="MemValue" DockPanel.Dock="Top" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="22" Margin="0,6,0,0"/>
                         <Border Height="8" CornerRadius="4" Background="{StaticResource Faint}" VerticalAlignment="Bottom">
-                          <Border x:Name="MemBar" HorizontalAlignment="Left" CornerRadius="4" Background="#34C76F" Width="0"/>
+                          <Border x:Name="MemBar" HorizontalAlignment="Left" CornerRadius="4" Background="#30D158" Width="0"/>
                         </Border>
                       </DockPanel>
                     </Border>
                     <Border Grid.Column="4" Background="{StaticResource Card}" CornerRadius="20" Padding="16,12">
                       <DockPanel>
-                        <Grid DockPanel.Dock="Top"><TextBlock Style="{StaticResource Label}" Text="Battery"/><c:Icon x:Name="BattBolt" Kind="bolt" Width="12" Height="12" HorizontalAlignment="Right" Foreground="#34C76F" Visibility="Collapsed"/></Grid>
+                        <Grid DockPanel.Dock="Top"><TextBlock Style="{StaticResource Label}" Text="Battery"/><c:Icon x:Name="BattBolt" Kind="bolt" Width="12" Height="12" HorizontalAlignment="Right" Foreground="#30D158" Visibility="Collapsed"/></Grid>
                         <TextBlock x:Name="BattValue" DockPanel.Dock="Top" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="22" Margin="0,6,0,0"/>
                         <TextBlock x:Name="BattState" Foreground="{StaticResource Dim}" FontSize="12" VerticalAlignment="Bottom"/>
                       </DockPanel>

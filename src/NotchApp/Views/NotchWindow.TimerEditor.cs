@@ -10,80 +10,49 @@ using Switch = NotchApp.Controls.Switch;
 namespace NotchApp.Views;
 
 /// <summary>
-/// The timer editor: tap the time on the dial and the timer card grows into an editor that takes over the Now row.
-/// Left, the focus length on a minute ruler with quick picks; right, break lengths, sessions and auto-start.
+/// The timer editor: tap the time (or the edit button) and the timer card turns into an editor in place.
+/// Left, iOS picker wheels for the focus, break and long-break lengths; right, sessions, auto-start and Done.
 /// Changing the length of the phase that's running restarts it at the new length.
 /// </summary>
 public partial class NotchWindow
 {
-    private static readonly int[] PresetMinutes = [10, 15, 25, 45, 60];
     private bool _editing;
     private DispatcherTimer? _saveSoon;
-    private readonly List<Button> _presetButtons = [];
     private readonly Dictionary<string, TextBlock> _stepValues = [];
     private Switch? _autoSwitch;
 
     /// <summary>A timer setting was changed from the editor (the Settings window redraws its timer page).</summary>
     public event Action? TimerEdited;
 
-    private static Color EditAccent => FocusTimer.ColorOf(Phase.Focus);
-
     private void InitTimerEditor()
     {
-        var c = EditAccent;
-        var accent = new SolidColorBrush(c);
-        EditDot.Fill = accent;
-        EditDot.Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = c, BlurRadius = 8, ShadowDepth = 0, Opacity = 0.9 };
-        EditLabel.Foreground = accent;
-        EditDone.Background = accent;
-        EditPool.Fill = new RadialGradientBrush(Color.FromArgb(60, c.R, c.G, c.B), Color.FromArgb(0, c.R, c.G, c.B));
-        Ruler.Color = c;
-        Ruler.Params = _every;
-        Ruler.GlideTo(_cfg.Timer.Focus, animate: false);
-        EditValue.Text = _cfg.Timer.Focus.ToString();
-        Ruler.Scrubbed += v => EditValue.Text = v.ToString();
-        Ruler.Committed += v => SetLength("focus", v);
+        // each wheel's caption wears its phase colour
+        CapFocus.Foreground = new SolidColorBrush(FocusTimer.ColorOf(Phase.Focus));
+        CapBreak.Foreground = new SolidColorBrush(FocusTimer.ColorOf(Phase.Break));
+        CapLong.Foreground = new SolidColorBrush(FocusTimer.ColorOf(Phase.LongBreak));
+        foreach (var (w, key) in new[] { (FocusWheel, "focus"), (BreakWheel, "brk"), (LongWheel, "long") })
+        {
+            w.Params = _every;
+            w.GlideTo(Current(key), animate: false);
+            w.Committed += v => SetLength(key, v);
+        }
+        var accent = FocusTimer.ColorOf(Phase.Focus);
+        EditDone.Background = new SolidColorBrush(accent);
         EditDone.Click += (_, _) => CloseTimerEditor();
-        DialBtn.ToolTip = "Edit timer";
         DialBtn.Click += (_, _) => OpenTimerEditor();
         TimerEditBtn.Click += (_, _) => OpenTimerEditor();
-        // hovering the time says what a click does: "of 25 min" turns into "Edit"
-        DialBtn.MouseEnter += (_, _) => DialHint(true);
-        DialBtn.MouseLeave += (_, _) => DialHint(false);
 
-        foreach (var m in PresetMinutes)
-        {
-            var b = new Button
-            {
-                Style = (Style)FindResource("Press"), Height = 24, Margin = new Thickness(2, 0, 2, 0),
-                FontSize = 11.5, FontWeight = FontWeights.SemiBold, Content = m.ToString(), Tag = m,
-            };
-            b.Click += (_, _) => SetLength("focus", m);
-            _presetButtons.Add(b);
-            Presets.Children.Add(b);
-        }
-
-        var t = _cfg.Timer;
-        EditRows.Children.Add(EditRow("Short break", Stepper("brk", 1), false));
-        EditRows.Children.Add(EditRow("Long break", Stepper("long", 5), false));
         EditRows.Children.Add(EditRow("Sessions", Stepper("sessions", 1), false));
-        _autoSwitch = new Switch { IsOn = t.AutoStart };
+        _autoSwitch = new Switch { IsOn = _cfg.Timer.AutoStart };
         _autoSwitch.Toggled += on => { _cfg.Timer.AutoStart = on; SaveSoon(); TimerEdited?.Invoke(); };
-        EditRows.Children.Add(EditRow("Auto-start next", _autoSwitch, true));
+        EditRows.Children.Add(EditRow("Auto-start", _autoSwitch, true));
         RefreshEditor();
-    }
-
-    private void DialHint(bool on)
-    {
-        var d = TimeSpan.FromMilliseconds(160);
-        DialOf.BeginAnimation(OpacityProperty, new DoubleAnimation(on ? 0 : 1, d));
-        DialEdit.BeginAnimation(OpacityProperty, new DoubleAnimation(on ? 1 : 0, d));
     }
 
     private static FrameworkElement EditRow(string label, FrameworkElement control, bool last)
     {
-        var g = new Grid { Height = 28 };
-        g.Children.Add(new TextBlock { Text = label, FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center });
+        var g = new Grid { Height = 36 };
+        g.Children.Add(new TextBlock { Text = label, FontSize = 13, VerticalAlignment = VerticalAlignment.Center });
         control.HorizontalAlignment = HorizontalAlignment.Right;
         control.VerticalAlignment = VerticalAlignment.Center;
         g.Children.Add(control);
@@ -108,7 +77,7 @@ public partial class NotchWindow
             b.Click += (_, _) => SetLength(key, Current(key) + d);
             return b;
         }
-        var value = new TextBlock { MinWidth = 48, TextAlignment = TextAlignment.Center, FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+        var value = new TextBlock { MinWidth = 30, TextAlignment = TextAlignment.Center, FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
         _stepValues[key] = value;
         var row = new StackPanel { Orientation = Orientation.Horizontal };
         row.Children.Add(Btn("−", -step));
@@ -154,23 +123,10 @@ public partial class NotchWindow
     private void RefreshEditor()
     {
         var t = _cfg.Timer;
-        Ruler.GlideTo(t.Focus);
-        EditValue.Text = t.Focus.ToString();
-        var accent = new SolidColorBrush(EditAccent);
-        var dark = new SolidColorBrush(Color.FromRgb(0x15, 0x11, 0x0A));
-        var idle = new SolidColorBrush(Color.FromArgb(0x12, 255, 255, 255));
-        foreach (var b in _presetButtons)
-        {
-            bool sel = (int)b.Tag == t.Focus;
-            b.Background = sel ? accent : idle;
-            b.Foreground = sel ? dark : (Brush)FindResource("Dim");
-        }
-        if (_stepValues.Count > 0)
-        {
-            _stepValues["brk"].Text = $"{t.ShortBreak} min";
-            _stepValues["long"].Text = $"{t.LongBreak} min";
-            _stepValues["sessions"].Text = t.Sessions.ToString();
-        }
+        FocusWheel.GlideTo(t.Focus);
+        BreakWheel.GlideTo(t.ShortBreak);
+        LongWheel.GlideTo(t.LongBreak);
+        if (_stepValues.TryGetValue("sessions", out var ses)) ses.Text = t.Sessions.ToString();
         if (_autoSwitch != null) _autoSwitch.IsOn = t.AutoStart;
     }
 
@@ -190,7 +146,7 @@ public partial class NotchWindow
     {
         if (!_hub) OpenHub("sticky", "timer");
         else { _openMode = "sticky"; if (_tab != "timer") SetTab("timer"); }
-        Ruler.Params = _every;
+        foreach (var w in new[] { FocusWheel, BreakWheel, LongWheel }) w.Params = _every;
         RefreshEditor();
         if (_editing) return;
         _editing = true;

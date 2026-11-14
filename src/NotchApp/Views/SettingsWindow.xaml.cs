@@ -152,8 +152,8 @@ public partial class SettingsWindow : Window
             {
                 Width = d.Bounds.Width * scale - 4, Height = d.Bounds.Height * scale - 4, CornerRadius = new CornerRadius(6),
                 BorderThickness = new Thickness(2),
-                BorderBrush = new SolidColorBrush(sel ? Color.FromRgb(0x3D, 0x8B, 0xFF) : Color.FromArgb(60, 255, 255, 255)),
-                Background = new SolidColorBrush(sel ? Color.FromArgb(40, 0x3D, 0x8B, 0xFF) : Color.FromArgb(14, 255, 255, 255)),
+                BorderBrush = new SolidColorBrush(sel ? Color.FromRgb(0x0A, 0x84, 0xFF) : Color.FromArgb(60, 255, 255, 255)),
+                Background = new SolidColorBrush(sel ? Color.FromArgb(40, 0x0A, 0x84, 0xFF) : Color.FromArgb(14, 255, 255, 255)),
                 Cursor = System.Windows.Input.Cursors.Hand, ToolTip = d.Name,
             };
             var g = new Grid();

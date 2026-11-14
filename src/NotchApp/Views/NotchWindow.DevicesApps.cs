@@ -11,7 +11,7 @@ namespace NotchApp.Views;
 /// <summary>Devices (radios, network, Bluetooth) and Apps (launcher) tabs.</summary>
 public partial class NotchWindow
 {
-    private static readonly Color Blue = Color.FromRgb(0x3D, 0x8B, 0xFF), Green = Color.FromRgb(0x34, 0xC7, 0x6F);
+    private static readonly Color Blue = Color.FromRgb(0x0A, 0x84, 0xFF), Green = Color.FromRgb(0x30, 0xD1, 0x58);
     private const double AppTile = 64;
 
     private bool _dndShown;

@@ -15,7 +15,7 @@ namespace NotchApp.Views;
 public partial class NotchWindow
 {
     private const double Row = 44, RowGap = 4, Tile = 56, TileGap = 8;
-    private static readonly Color Purple = Color.FromRgb(0x8E, 0x7B, 0xFF), Orange = Color.FromRgb(0xFF, 0x9F, 0x43), Amber = Color.FromRgb(0xFF, 0xB5, 0x47);
+    private static readonly Color Purple = Color.FromRgb(0x8E, 0x7B, 0xFF), Orange = Color.FromRgb(0xFF, 0x9F, 0x43), Amber = Color.FromRgb(0xFF, 0x9F, 0x0A);
 
     private double ClipListHeight()
     {
@@ -177,7 +177,7 @@ public partial class NotchWindow
         if (btn.Content is IconEl ic)
         {
             ic.Kind = "check";
-            ic.Foreground = new SolidColorBrush(Color.FromRgb(0x34, 0xC7, 0x6F));
+            ic.Foreground = new SolidColorBrush(Color.FromRgb(0x30, 0xD1, 0x58));
             await Task.Delay(1100);
             ic.Kind = "copy";
             ic.Foreground = (Brush)FindResource("Dim");

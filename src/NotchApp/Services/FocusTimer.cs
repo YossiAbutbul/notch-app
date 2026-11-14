@@ -34,9 +34,9 @@ public sealed class FocusTimer
     public static string Label(Phase p) => p switch { Phase.Focus => "Focus", Phase.Break => "Break", _ => "Long break" };
     public static Color ColorOf(Phase p) => p switch
     {
-        Phase.Focus => Color.FromRgb(0xFF, 0xB5, 0x47),
-        Phase.Break => Color.FromRgb(0x34, 0xC7, 0x6F),
-        _ => Color.FromRgb(0x3D, 0x8B, 0xFF),
+        Phase.Focus => Color.FromRgb(0xFF, 0x9F, 0x0A),
+        Phase.Break => Color.FromRgb(0x30, 0xD1, 0x58),
+        _ => Color.FromRgb(0x0A, 0x84, 0xFF),
     };
 
     public void Tick(double seconds)
