@@ -19,7 +19,7 @@ namespace NotchApp.Views;
 /// </summary>
 public partial class NotchWindow : Window
 {
-    private const double WinW = 760, WinH = 380, EdgeInset = 28, HubChrome = 72;
+    private const double WinW = 760, WinH = 380, EdgeInset = 28, HubChrome = 68;   // 12 inset + 32 tabs + 12 gap + 12 inset
 
     private readonly AppSettings _cfg;
     private readonly MediaService _media;
@@ -400,12 +400,10 @@ public partial class NotchWindow : Window
                 Strip.Children.Add(PaneOf(t.Id));
             }
         }
-        TabButtons.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(40) });
         // with many tabs the labels need the room: drop the tab icons when they'd crowd the text
-        bool roomy = (_cfg.HubWidth - 24 - 40) / Math.Max(1, col) >= 92;
+        bool roomy = (_cfg.HubWidth - 24 - 40 - 4) / Math.Max(1, col) >= 92;
         foreach (var b in AllTabButtons)
             if (b.Content is StackPanel sp && sp.Children.Count > 0) sp.Children[0].Visibility = roomy ? Visibility.Visible : Visibility.Collapsed;
-        Grid.SetColumn(GearBtn, col);
         LHub.UpdateLayout();
         SetTab(VisibleTabs().Contains(_tab) ? _tab : VisibleTabs()[0], instant: true);
     }
@@ -420,7 +418,7 @@ public partial class NotchWindow : Window
         double target = -to * PaneW;
         var b = TabButton(t);
         LHub.UpdateLayout();
-        TabX.Target = b.TranslatePoint(new Point(0, 0), TabsRow).X;
+        TabX.Target = b.TranslatePoint(new Point(0, 0), TrackInner).X;
         TabW.Target = b.ActualWidth;
         if (instant || !_hub || !SystemParameters.ClientAreaAnimation || from < 0 || from == to)
         {
@@ -469,7 +467,7 @@ public partial class NotchWindow : Window
 
     private void TintTab(Button tb, bool selected, bool instant)
     {
-        var to = selected ? Color.FromRgb(0xF5, 0xF5, 0xF5) : ((SolidColorBrush)FindResource("Dim")).Color;
+        var to = selected ? Color.FromRgb(0xF5, 0xF5, 0xF5) : Color.FromArgb(0xA8, 0xF4, 0xF5, 0xF8);
         var from = tb.Foreground is SolidColorBrush cur ? cur.Color : to;
         if (instant || from == to) { tb.Foreground = new SolidColorBrush(to); return; }
         var brush = new SolidColorBrush(from);

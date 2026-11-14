@@ -59,8 +59,8 @@
       </Setter>
     </Style>
     <Style x:Key="Tab" TargetType="Button" BasedOn="{StaticResource Press}">
-      <Setter Property="Foreground" Value="#94F4F5F8"/>
-      <Setter Property="Height" Value="36"/>
+      <Setter Property="Foreground" Value="#A8F4F5F8"/>
+      <Setter Property="Height" Value="28"/>
       <Setter Property="FontWeight" Value="SemiBold"/>
       <Setter Property="FontSize" Value="12.5"/>
     </Style>
@@ -146,39 +146,45 @@
         <!-- expanded: the hub -->
         <Grid x:Name="LHub" Width="600" Opacity="0" IsHitTestVisible="False">
           <StackPanel Margin="12">
-            <Grid x:Name="TabsRow" Height="36">
-              <Border x:Name="TabIndicator" HorizontalAlignment="Left" Height="36" Width="80" CornerRadius="18" Background="#1AFFFFFF">
-                <Border.RenderTransform><TranslateTransform x:Name="TabIndicatorX"/></Border.RenderTransform>
+            <!-- segmented control: a recessed track, equal segments, a raised thumb that slides between them; settings sits apart -->
+            <Grid x:Name="TabsRow" Height="32">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="8"/><ColumnDefinition Width="32"/></Grid.ColumnDefinitions>
+              <Border x:Name="TabTrack" CornerRadius="16" Background="#1CFFFFFF" Padding="2">
+                <Grid x:Name="TrackInner">
+                  <Border x:Name="TabIndicator" HorizontalAlignment="Left" Height="28" Width="80" CornerRadius="14" Background="#4A4A4E">
+                    <Border.RenderTransform><TranslateTransform x:Name="TabIndicatorX"/></Border.RenderTransform>
+                    <Border.Effect><DropShadowEffect BlurRadius="8" ShadowDepth="1" Direction="270" Opacity="0.35" Color="Black"/></Border.Effect>
+                    <!-- light catching the top edge of the raised thumb -->
+                    <Border CornerRadius="14" BorderThickness="0,1,0,0" BorderBrush="#1FFFFFFF"/>
+                  </Border>
+                  <Grid x:Name="TabButtons">
+                    <Button x:Name="TabNow" Style="{StaticResource Tab}" Tag="now">
+                      <StackPanel Orientation="Horizontal"><c:Icon Kind="now" Width="15" Height="15" Margin="0,0,6,0"/><TextBlock Text="Now"/></StackPanel>
+                    </Button>
+                    <Button x:Name="TabNotif" Style="{StaticResource Tab}" Tag="notif">
+                      <StackPanel Orientation="Horizontal"><c:Icon Kind="bell" Width="15" Height="15" Margin="0,0,6,0"/><TextBlock Text="Alerts"/></StackPanel>
+                    </Button>
+                    <Button x:Name="TabClip" Style="{StaticResource Tab}" Tag="clip">
+                      <StackPanel Orientation="Horizontal"><c:Icon Kind="clip" Width="15" Height="15" Margin="0,0,6,0"/><TextBlock Text="Clipboard"/></StackPanel>
+                    </Button>
+                    <Button x:Name="TabShelf" Style="{StaticResource Tab}" Tag="shelf">
+                      <StackPanel Orientation="Horizontal"><c:Icon Kind="shelf" Width="15" Height="15" Margin="0,0,6,0"/><TextBlock Text="Shelf"/></StackPanel>
+                    </Button>
+                    <Button x:Name="TabDev" Style="{StaticResource Tab}" Tag="dev">
+                      <StackPanel Orientation="Horizontal"><c:Icon Kind="wifi" Width="15" Height="15" Margin="0,0,6,0"/><TextBlock Text="Devices"/></StackPanel>
+                    </Button>
+                    <Button x:Name="TabApps" Style="{StaticResource Tab}" Tag="apps">
+                      <StackPanel Orientation="Horizontal"><c:Icon Kind="apps" Width="15" Height="15" Margin="0,0,6,0"/><TextBlock Text="Apps"/></StackPanel>
+                    </Button>
+                    <Button x:Name="TabSystem" Style="{StaticResource Tab}" Tag="system">
+                      <StackPanel Orientation="Horizontal"><c:Icon Kind="system" Width="15" Height="15" Margin="0,0,6,0"/><TextBlock Text="System"/></StackPanel>
+                    </Button>
+                  </Grid>
+                </Grid>
               </Border>
-              <Grid x:Name="TabButtons">
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="40"/>
-                </Grid.ColumnDefinitions>
-                <Button x:Name="TabNow" Style="{StaticResource Tab}" Tag="now">
-                  <StackPanel Orientation="Horizontal"><c:Icon Kind="now" Width="15" Height="15" Margin="0,0,6,0"/><TextBlock Text="Now"/></StackPanel>
-                </Button>
-                <Button x:Name="TabNotif" Style="{StaticResource Tab}" Tag="notif">
-                  <StackPanel Orientation="Horizontal"><c:Icon Kind="bell" Width="15" Height="15" Margin="0,0,6,0"/><TextBlock Text="Alerts"/></StackPanel>
-                </Button>
-                <Button x:Name="TabClip" Style="{StaticResource Tab}" Tag="clip">
-                  <StackPanel Orientation="Horizontal"><c:Icon Kind="clip" Width="15" Height="15" Margin="0,0,6,0"/><TextBlock Text="Clipboard"/></StackPanel>
-                </Button>
-                <Button x:Name="TabShelf" Style="{StaticResource Tab}" Tag="shelf">
-                  <StackPanel Orientation="Horizontal"><c:Icon Kind="shelf" Width="15" Height="15" Margin="0,0,6,0"/><TextBlock Text="Shelf"/></StackPanel>
-                </Button>
-                <Button x:Name="TabDev" Style="{StaticResource Tab}" Tag="dev">
-                  <StackPanel Orientation="Horizontal"><c:Icon Kind="wifi" Width="15" Height="15" Margin="0,0,6,0"/><TextBlock Text="Devices"/></StackPanel>
-                </Button>
-                <Button x:Name="TabApps" Style="{StaticResource Tab}" Tag="apps">
-                  <StackPanel Orientation="Horizontal"><c:Icon Kind="apps" Width="15" Height="15" Margin="0,0,6,0"/><TextBlock Text="Apps"/></StackPanel>
-                </Button>
-                <Button x:Name="TabSystem" Grid.Column="1" Style="{StaticResource Tab}" Tag="system">
-                  <StackPanel Orientation="Horizontal"><c:Icon Kind="system" Width="15" Height="15" Margin="0,0,6,0"/><TextBlock Text="System"/></StackPanel>
-                </Button>
-                <Button x:Name="GearBtn" Grid.Column="2" Style="{StaticResource Tab}" ToolTip="Settings">
-                  <c:Icon Kind="gear" Width="15" Height="15"/>
-                </Button>
-              </Grid>
+              <Button x:Name="GearBtn" Grid.Column="2" Style="{StaticResource Press}" Width="32" Height="32" Background="#1CFFFFFF" Foreground="#C8F4F5F8" ToolTip="Settings">
+                <c:Icon Kind="gear" Width="15" Height="15"/>
+              </Button>
             </Grid>
 
             <Canvas x:Name="Viewport" Margin="0,12,0,0" Height="200" ClipToBounds="True" Width="576">
@@ -201,17 +207,18 @@
                         <Border x:Name="ArtLarge" CornerRadius="10" Background="#33FFFFFF"/>
                         <Grid Grid.Column="2">
                           <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                          <!-- title 18 + artist 16 over 30 px controls fits the 64 px art exactly -->
                           <StackPanel Margin="0,0,40,0">
-                            <TextBlock x:Name="SongTitle" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="15" TextTrimming="CharacterEllipsis"/>
-                            <TextBlock x:Name="SongArtist" Foreground="{StaticResource Dim}" FontSize="12.5" TextTrimming="CharacterEllipsis"/>
+                            <TextBlock x:Name="SongTitle" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="14.5" LineHeight="18" LineStackingStrategy="BlockLineHeight" TextTrimming="CharacterEllipsis"/>
+                            <TextBlock x:Name="SongArtist" Foreground="{StaticResource Dim}" FontSize="12" LineHeight="16" LineStackingStrategy="BlockLineHeight" TextTrimming="CharacterEllipsis"/>
                           </StackPanel>
                           <StackPanel x:Name="BarsLarge" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,2,0,0" Height="18"/>
-                          <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="-6,0,0,0">
-                            <Button x:Name="PrevBtn" Style="{StaticResource Press}" Width="34" Height="34"><c:Icon Kind="prev" Width="15" Height="15"/></Button>
-                            <Button x:Name="PlayBtn" Style="{StaticResource Press}" Width="36" Height="36" Background="#F4F5F8" Margin="4,0">
-                              <c:Icon x:Name="PlayIcon" Kind="pause" Width="15" Height="15" Foreground="Black"/>
+                          <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="-7,0,0,0">
+                            <Button x:Name="PrevBtn" Style="{StaticResource Press}" Width="30" Height="30"><c:Icon Kind="prev" Width="14" Height="14"/></Button>
+                            <Button x:Name="PlayBtn" Style="{StaticResource Press}" Width="30" Height="30" Background="#F4F5F8" Margin="4,0">
+                              <c:Icon x:Name="PlayIcon" Kind="pause" Width="13" Height="13" Foreground="Black"/>
                             </Button>
-                            <Button x:Name="NextBtn" Style="{StaticResource Press}" Width="34" Height="34"><c:Icon Kind="next" Width="15" Height="15"/></Button>
+                            <Button x:Name="NextBtn" Style="{StaticResource Press}" Width="30" Height="30"><c:Icon Kind="next" Width="14" Height="14"/></Button>
                           </StackPanel>
                         </Grid>
                         <Grid Grid.Row="2" Grid.ColumnSpan="3">
