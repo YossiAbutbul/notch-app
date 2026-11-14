@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 using NotchApp.Controls;
 using NotchApp.Services;
@@ -25,8 +26,33 @@ public partial class NotchWindow
     private int ShelfRows => Math.Min(2, (int)Math.Ceiling(_shelf.Items.Count / 4.0));
     private double ShelfGridHeight() => _shelf.Items.Count == 0 ? 96 : ShelfRows * Tile + (ShelfRows - 1) * TileGap;
 
+    /// <summary>
+    /// Scroll edge effect: content fades out over the last 20 px on whichever side has more to scroll to,
+    /// instead of being cut off by the edge.
+    /// </summary>
+    private static void ScrollEdges(ScrollViewer sv)
+    {
+        void Update()
+        {
+            double h = sv.ActualHeight;
+            bool top = sv.VerticalOffset > 1, bottom = sv.VerticalOffset < sv.ScrollableHeight - 1;
+            if (h <= 0 || (!top && !bottom)) { sv.OpacityMask = null; return; }
+            double f = Math.Min(0.4, 20 / h);
+            var m = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(0, 1) };
+            m.GradientStops.Add(new GradientStop(top ? Colors.Transparent : Colors.Black, 0));
+            m.GradientStops.Add(new GradientStop(Colors.Black, f));
+            m.GradientStops.Add(new GradientStop(Colors.Black, 1 - f));
+            m.GradientStops.Add(new GradientStop(bottom ? Colors.Transparent : Colors.Black, 1));
+            m.Freeze();
+            sv.OpacityMask = m;
+        }
+        sv.ScrollChanged += (_, _) => Update();
+        sv.SizeChanged += (_, _) => Update();
+    }
+
     private void WireLists()
     {
+        foreach (var sv in new[] { ClipScroll, ShelfScroll, NotifScroll, AppsScroll, DevScroll }) ScrollEdges(sv);
         _clip.Changed += () => { if (_hub && _tab == "clip") RenderClip(); };
         _clip.Captured += OnCaptured;
         _shelf.Changed += () => { if (_hub && _tab == "shelf") RenderShelf(); };
@@ -122,12 +148,28 @@ public partial class NotchWindow
         g.Children.Add(acts);
 
         row.Child = g;
-        row.MouseEnter += (_, _) => row.Background = card;
-        row.MouseLeave += (_, _) => row.Background = Brushes.Transparent;
+        HoverFill(row);
+        // actions appear with the hover; a pinned item keeps its pin showing
+        foreach (UIElement a in acts.Children) a.Opacity = 0;
+        if (c.Pinned) acts.Children[acts.Children.Count - 2].Opacity = 1;
+        row.MouseEnter += (_, _) => { foreach (UIElement a in acts.Children) Ease(a, 1, 120); };
+        row.MouseLeave += (_, _) => { for (int i = 0; i < acts.Children.Count; i++) Ease(acts.Children[i], c.Pinned && i == acts.Children.Count - 2 ? 1 : 0, 220); };
         row.MouseLeftButtonDown += (_, e) => { e.Handled = true; };                 // a click on a row copies; it doesn't start a pull
         row.MouseLeftButtonUp += (_, e) => { e.Handled = true; CopyWithFeedback(c, copyBtn); };
         return row;
     }
+
+    /// <summary>A row's highlight fades in quickly and out a little slower, like a list cell.</summary>
+    private static void HoverFill(Border row)
+    {
+        var brush = new SolidColorBrush(Color.FromArgb(0, 255, 255, 255));
+        row.Background = brush;
+        row.MouseEnter += (_, _) => brush.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(Color.FromArgb(0x11, 255, 255, 255), TimeSpan.FromMilliseconds(120)));
+        row.MouseLeave += (_, _) => brush.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(Color.FromArgb(0, 255, 255, 255), TimeSpan.FromMilliseconds(240)));
+    }
+
+    private static void Ease(UIElement el, double to, int ms) =>
+        el.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(ms)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
 
     private async void CopyWithFeedback(ClipItem c, Button btn)
     {
@@ -174,7 +216,7 @@ public partial class NotchWindow
         else
         {
             ShelfGrid.Columns = 4;
-            ShelfGrid.Margin = new Thickness(0, 0, -TileGap, 0);
+            ShelfGrid.Margin = new Thickness(0, 0, -TileGap, -TileGap);   // the last row's gap isn't content
             foreach (var i in items) ShelfGrid.Children.Add(ShelfTile(i));
         }
         ShelfScroll.Height = ShelfGridHeight() + (items.Count > 0 ? 0 : 0);
@@ -208,8 +250,8 @@ public partial class NotchWindow
         Grid.SetColumnSpan(rm, 3);
         g.Children.Add(rm);
         tile.Child = g;
-        tile.MouseEnter += (_, _) => rm.Opacity = 1;
-        tile.MouseLeave += (_, _) => rm.Opacity = 0;
+        tile.MouseEnter += (_, _) => Ease(rm, 1, 120);
+        tile.MouseLeave += (_, _) => Ease(rm, 0, 220);
 
         // drag a file back out into any app; double-click opens it
         Point? down = null;

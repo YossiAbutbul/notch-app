@@ -16,7 +16,7 @@
     <SolidColorBrush x:Key="Faint" Color="#24F4F5F8"/>
     <SolidColorBrush x:Key="Card" Color="#11FFFFFF"/>
 
-    <!-- every button presses in on mouse-down (instant), and lifts on hover -->
+    <!-- every button dips the instant the mouse goes down, springs back on release, and the hover glow fades in -->
     <Style x:Key="Press" TargetType="Button">
       <Setter Property="Background" Value="Transparent"/>
       <Setter Property="Foreground" Value="#F4F5F8"/>
@@ -24,21 +24,35 @@
       <Setter Property="Focusable" Value="False"/>
       <Setter Property="Cursor" Value="Hand"/>
       <Setter Property="Padding" Value="0"/>
-      <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
-      <Setter Property="RenderTransform"><Setter.Value><ScaleTransform/></Setter.Value></Setter>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Grid>
+            <Grid x:Name="Root" RenderTransformOrigin="0.5,0.5" Background="Transparent">
+              <Grid.RenderTransform><ScaleTransform x:Name="S"/></Grid.RenderTransform>
               <c:Pill x:Name="Bd" Background="{TemplateBinding Background}"/>
               <c:Pill x:Name="Hover" Background="#1FFFFFFF" Opacity="0"/>
               <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Grid>
             <ControlTemplate.Triggers>
-              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Hover" Property="Opacity" Value="1"/></Trigger>
-              <Trigger Property="IsPressed" Value="True">
-                <Setter Property="RenderTransform"><Setter.Value><ScaleTransform ScaleX="0.93" ScaleY="0.93"/></Setter.Value></Setter>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Trigger.EnterActions><BeginStoryboard><Storyboard>
+                  <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.12"/>
+                </Storyboard></BeginStoryboard></Trigger.EnterActions>
+                <Trigger.ExitActions><BeginStoryboard><Storyboard>
+                  <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.24"/>
+                </Storyboard></BeginStoryboard></Trigger.ExitActions>
               </Trigger>
+              <Trigger Property="IsPressed" Value="True">
+                <Trigger.EnterActions><BeginStoryboard><Storyboard>
+                  <DoubleAnimation Storyboard.TargetName="S" Storyboard.TargetProperty="ScaleX" To="0.92" Duration="0:0:0.09"><DoubleAnimation.EasingFunction><QuadraticEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
+                  <DoubleAnimation Storyboard.TargetName="S" Storyboard.TargetProperty="ScaleY" To="0.92" Duration="0:0:0.09"><DoubleAnimation.EasingFunction><QuadraticEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
+                </Storyboard></BeginStoryboard></Trigger.EnterActions>
+                <Trigger.ExitActions><BeginStoryboard><Storyboard>
+                  <DoubleAnimation Storyboard.TargetName="S" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.36"><DoubleAnimation.EasingFunction><BackEase EasingMode="EaseOut" Amplitude="0.35"/></DoubleAnimation.EasingFunction></DoubleAnimation>
+                  <DoubleAnimation Storyboard.TargetName="S" Storyboard.TargetProperty="ScaleY" To="1" Duration="0:0:0.36"><DoubleAnimation.EasingFunction><BackEase EasingMode="EaseOut" Amplitude="0.35"/></DoubleAnimation.EasingFunction></DoubleAnimation>
+                </Storyboard></BeginStoryboard></Trigger.ExitActions>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Root" Property="Opacity" Value="0.5"/></Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
         </Setter.Value>
@@ -50,8 +64,9 @@
       <Setter Property="FontWeight" Value="SemiBold"/>
       <Setter Property="FontSize" Value="12.5"/>
     </Style>
+    <!-- section labels: sentence case, semibold, dim (WPF can't add tracking, so no all-caps) -->
     <Style x:Key="Label" TargetType="TextBlock">
-      <Setter Property="FontSize" Value="11"/>
+      <Setter Property="FontSize" Value="12"/>
       <Setter Property="FontWeight" Value="SemiBold"/>
       <Setter Property="Foreground" Value="#94F4F5F8"/>
     </Style>
@@ -237,7 +252,7 @@
                           <Grid Height="14">
                             <StackPanel Orientation="Horizontal">
                               <Ellipse x:Name="PhaseDot" Width="6" Height="6" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                              <TextBlock x:Name="PhaseText" FontSize="11" FontWeight="Bold" Text="FOCUS"/>
+                              <TextBlock x:Name="PhaseText" FontSize="12" FontWeight="SemiBold" Text="Focus"/>
                             </StackPanel>
                             <TextBlock x:Name="PhaseCount" HorizontalAlignment="Right" Foreground="{StaticResource Dim}" FontSize="11"/>
                           </Grid>
@@ -273,7 +288,7 @@
                           <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                           <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <Ellipse x:Name="EditDot" Width="6" Height="6" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="EditLabel" FontSize="11" FontWeight="Bold" Text="FOCUS"/>
+                            <TextBlock x:Name="EditLabel" FontSize="12" FontWeight="SemiBold" Text="Focus"/>
                           </StackPanel>
                           <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                             <c:RollingText x:Name="EditValue" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="30" VerticalAlignment="Bottom"/>
@@ -303,7 +318,7 @@
                     <Button x:Name="NotifClear" Style="{StaticResource Press}" HorizontalAlignment="Right" Height="26" Padding="11,0" Background="{StaticResource Faint}" FontWeight="SemiBold" FontSize="11.5" Content="Clear"/>
                   </Grid>
                   <ScrollViewer x:Name="NotifScroll" VerticalScrollBarVisibility="Hidden" Height="166" PanningMode="VerticalOnly">
-                    <StackPanel x:Name="NotifList"/>
+                    <StackPanel x:Name="NotifList" Margin="0,0,0,-4"/>
                   </ScrollViewer>
                 </StackPanel>
 
@@ -314,7 +329,7 @@
                     <Button x:Name="ClipClear" Style="{StaticResource Press}" HorizontalAlignment="Right" Height="26" Padding="11,0" Background="{StaticResource Faint}" FontWeight="SemiBold" FontSize="11.5" Content="Clear unpinned"/>
                   </Grid>
                   <ScrollViewer x:Name="ClipScroll" VerticalScrollBarVisibility="Hidden" Height="166" PanningMode="VerticalOnly">
-                    <StackPanel x:Name="ClipList"/>
+                    <StackPanel x:Name="ClipList" Margin="0,0,0,-4"/>
                   </ScrollViewer>
                 </StackPanel>
 
@@ -329,7 +344,7 @@
                     </StackPanel>
                   </Grid>
                   <ScrollViewer x:Name="ShelfScroll" VerticalScrollBarVisibility="Hidden" Height="120" PanningMode="VerticalOnly">
-                    <UniformGrid x:Name="ShelfGrid" Columns="4" VerticalAlignment="Top" Margin="0,0,-8,0"/>
+                    <UniformGrid x:Name="ShelfGrid" Columns="4" VerticalAlignment="Top" Margin="0,0,-8,-8"/>
                   </ScrollViewer>
                 </StackPanel>
 
@@ -340,10 +355,10 @@
                   <Border Grid.Column="2" Background="{StaticResource Card}" CornerRadius="20" Padding="12,8,8,6">
                     <DockPanel>
                       <Grid DockPanel.Dock="Top" Height="26" Margin="0,0,0,2">
-                        <TextBlock Style="{StaticResource Label}" Text="BLUETOOTH DEVICES" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                        <TextBlock Style="{StaticResource Label}" Text="Bluetooth devices" VerticalAlignment="Center" Margin="4,0,0,0"/>
                         <Button x:Name="BtManage" Style="{StaticResource Press}" HorizontalAlignment="Right" Height="24" Padding="10,0" Background="{StaticResource Faint}" FontWeight="SemiBold" FontSize="11" Content="Pair or connect"/>
                       </Grid>
-                      <ScrollViewer VerticalScrollBarVisibility="Hidden" PanningMode="VerticalOnly">
+                      <ScrollViewer x:Name="DevScroll" VerticalScrollBarVisibility="Hidden" PanningMode="VerticalOnly">
                         <StackPanel x:Name="DevList"/>
                       </ScrollViewer>
                     </DockPanel>
@@ -353,7 +368,7 @@
                 <!-- Apps -->
                 <Grid x:Name="PaneApps" Width="576" VerticalAlignment="Top">
                   <ScrollViewer x:Name="AppsScroll" VerticalScrollBarVisibility="Hidden" PanningMode="VerticalOnly">
-                    <UniformGrid x:Name="AppsGrid" Columns="6" VerticalAlignment="Top" Margin="0,0,-8,0"/>
+                    <UniformGrid x:Name="AppsGrid" Columns="6" VerticalAlignment="Top" Margin="0,0,-8,-8"/>
                   </ScrollViewer>
                 </Grid>
 
@@ -375,7 +390,7 @@
                     </Border>
                     <Border Grid.Column="2" Background="{StaticResource Card}" CornerRadius="20" Padding="16,12">
                       <DockPanel>
-                        <Grid DockPanel.Dock="Top"><TextBlock Style="{StaticResource Label}" Text="MEMORY"/><TextBlock x:Name="MemPct" Style="{StaticResource Label}" HorizontalAlignment="Right"/></Grid>
+                        <Grid DockPanel.Dock="Top"><TextBlock Style="{StaticResource Label}" Text="Memory"/><TextBlock x:Name="MemPct" Style="{StaticResource Label}" HorizontalAlignment="Right"/></Grid>
                         <TextBlock x:Name="MemValue" DockPanel.Dock="Top" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="22" Margin="0,6,0,0"/>
                         <Border Height="8" CornerRadius="4" Background="{StaticResource Faint}" VerticalAlignment="Bottom">
                           <Border x:Name="MemBar" HorizontalAlignment="Left" CornerRadius="4" Background="#34C76F" Width="0"/>
@@ -384,7 +399,7 @@
                     </Border>
                     <Border Grid.Column="4" Background="{StaticResource Card}" CornerRadius="20" Padding="16,12">
                       <DockPanel>
-                        <Grid DockPanel.Dock="Top"><TextBlock Style="{StaticResource Label}" Text="BATTERY"/><c:Icon x:Name="BattBolt" Kind="bolt" Width="12" Height="12" HorizontalAlignment="Right" Foreground="#34C76F" Visibility="Collapsed"/></Grid>
+                        <Grid DockPanel.Dock="Top"><TextBlock Style="{StaticResource Label}" Text="Battery"/><c:Icon x:Name="BattBolt" Kind="bolt" Width="12" Height="12" HorizontalAlignment="Right" Foreground="#34C76F" Visibility="Collapsed"/></Grid>
                         <TextBlock x:Name="BattValue" DockPanel.Dock="Top" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="22" Margin="0,6,0,0"/>
                         <TextBlock x:Name="BattState" Foreground="{StaticResource Dim}" FontSize="12" VerticalAlignment="Bottom"/>
                       </DockPanel>

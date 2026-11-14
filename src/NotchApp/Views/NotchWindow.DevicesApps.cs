@@ -12,7 +12,7 @@ namespace NotchApp.Views;
 public partial class NotchWindow
 {
     private static readonly Color Blue = Color.FromRgb(0x3D, 0x8B, 0xFF), Green = Color.FromRgb(0x34, 0xC7, 0x6F);
-    private const double AppTile = 68;
+    private const double AppTile = 64;
 
     private bool _dndShown;
 
@@ -69,29 +69,41 @@ public partial class NotchWindow
         return b;
     }
 
-    /// <summary>Tiles get a 20 px corner (concentric with the 32 px hub at a 12 px inset) instead of the pill shape.</summary>
+    private static ControlTemplate? _tile, _tileCentered;
+
+    /// <summary>
+    /// Tiles get a 20 px corner (concentric with the 32 px hub at a 12 px inset) instead of the pill shape, and the same
+    /// feel as every other button: an instant dip on mouse-down, a springy release, a hover sheen that fades.
+    /// </summary>
     private ControlTemplate TileTemplate(bool centered = false)
     {
-        var t = new ControlTemplate(typeof(Button));
-        var bd = new FrameworkElementFactory(typeof(Border));
-        bd.SetValue(Border.CornerRadiusProperty, new CornerRadius(centered ? 14 : 20));
-        bd.SetBinding(Border.BackgroundProperty, new System.Windows.Data.Binding("Background") { RelativeSource = System.Windows.Data.RelativeSource.TemplatedParent });
-        bd.SetValue(Border.PaddingProperty, centered ? new Thickness(2) : new Thickness(12, 9, 12, 9));
-        var cp = new FrameworkElementFactory(typeof(ContentPresenter));
-        cp.SetValue(FrameworkElement.HorizontalAlignmentProperty, centered ? HorizontalAlignment.Center : HorizontalAlignment.Left);
-        cp.SetValue(FrameworkElement.VerticalAlignmentProperty, centered ? VerticalAlignment.Center : VerticalAlignment.Top);
-        bd.AppendChild(cp);
-        bd.Name = "Bd";
-        t.VisualTree = bd;
-        // same feel as every other button: lifts on hover, presses in on mouse-down
-        var hover = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
-        if (centered) hover.Setters.Add(new Setter(Border.BackgroundProperty, new SolidColorBrush(Color.FromArgb(17, 255, 255, 255)), "Bd"));
-        else hover.Setters.Add(new Setter(UIElement.OpacityProperty, 0.86, "Bd"));
-        var press = new Trigger { Property = System.Windows.Controls.Primitives.ButtonBase.IsPressedProperty, Value = true };
-        press.Setters.Add(new Setter(UIElement.RenderTransformProperty, new ScaleTransform(0.95, 0.95)));
-        t.Triggers.Add(hover);
-        t.Triggers.Add(press);
-        return t;
+        ref var cached = ref centered ? ref _tileCentered : ref _tile;
+        if (cached != null) return cached;
+        string r = centered ? "14" : "20", pad = centered ? "2" : "12,9,12,9", ha = centered ? "Center" : "Left", va = centered ? "Center" : "Top";
+        string Anim(string target, string to, string ms, string ease) =>
+            $"<DoubleAnimation Storyboard.TargetName='S' Storyboard.TargetProperty='{target}' To='{to}' Duration='0:0:{ms}'><DoubleAnimation.EasingFunction>{ease}</DoubleAnimation.EasingFunction></DoubleAnimation>";
+        string down = "<QuadraticEase EasingMode='EaseOut'/>", up = "<BackEase EasingMode='EaseOut' Amplitude='0.35'/>";
+        var xaml = $@"
+<ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml' TargetType='Button'>
+  <Grid x:Name='Root' RenderTransformOrigin='0.5,0.5'>
+    <Grid.RenderTransform><ScaleTransform x:Name='S'/></Grid.RenderTransform>
+    <Border CornerRadius='{r}' Background='{{TemplateBinding Background}}' Padding='{pad}'>
+      <ContentPresenter HorizontalAlignment='{ha}' VerticalAlignment='{va}'/>
+    </Border>
+    <Border x:Name='Hover' CornerRadius='{r}' Background='#14FFFFFF' Opacity='0' IsHitTestVisible='False'/>
+  </Grid>
+  <ControlTemplate.Triggers>
+    <Trigger Property='IsMouseOver' Value='True'>
+      <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName='Hover' Storyboard.TargetProperty='Opacity' To='1' Duration='0:0:0.12'/></Storyboard></BeginStoryboard></Trigger.EnterActions>
+      <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName='Hover' Storyboard.TargetProperty='Opacity' To='0' Duration='0:0:0.24'/></Storyboard></BeginStoryboard></Trigger.ExitActions>
+    </Trigger>
+    <Trigger Property='IsPressed' Value='True'>
+      <Trigger.EnterActions><BeginStoryboard><Storyboard>{Anim("ScaleX", "0.95", "0.09", down)}{Anim("ScaleY", "0.95", "0.09", down)}</Storyboard></BeginStoryboard></Trigger.EnterActions>
+      <Trigger.ExitActions><BeginStoryboard><Storyboard>{Anim("ScaleX", "1", "0.36", up)}{Anim("ScaleY", "1", "0.36", up)}</Storyboard></BeginStoryboard></Trigger.ExitActions>
+    </Trigger>
+  </ControlTemplate.Triggers>
+</ControlTemplate>";
+        return cached = (ControlTemplate)System.Windows.Markup.XamlReader.Parse(xaml);
     }
 
     private FrameworkElement DevRow(BtDevice d)

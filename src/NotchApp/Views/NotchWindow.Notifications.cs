@@ -166,8 +166,7 @@ public partial class NotchWindow
         g.Children.Add(when);
 
         row.Child = g;
-        row.MouseEnter += (_, _) => row.Background = card;
-        row.MouseLeave += (_, _) => row.Background = Brushes.Transparent;
+        HoverFill(row);
         row.MouseLeftButtonDown += (_, e) => e.Handled = true;
         row.MouseLeftButtonUp += (_, e) => { e.Handled = true; CloseHub(); NotificationsService.OpenApp(n); };
         return row;

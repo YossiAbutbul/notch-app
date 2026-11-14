@@ -14,7 +14,7 @@ dotnet run
 
 Requires the .NET 11 SDK on Windows 10 (19041) or later. The app lives in the tray; left-click the tray icon or right-click the notch for Settings.
 
-Launch options for checking states without the mouse: `--hub`, `--hub=clip` (or `notif`, `shelf`, `dev`, `apps`, `system`), `--timer`, `--edit-timer`, `--sample` (example clipboard items in memory, plus this project's folder on the shelf).
+Launch options for checking states without the mouse: `--hub`, `--hub=clip` (or `notif`, `shelf`, `dev`, `apps`, `system`), `--timer`, `--edit-timer`, `--sample` (example clipboard items in memory, plus this project's folder on the shelf). `--demo` plays the main moments on a schedule (hub open, tab switches, close, a notification) for reviewing motion frame by frame.
 
 ## What works now
 

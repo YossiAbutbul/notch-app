@@ -65,6 +65,10 @@ public partial class NotchWindow : Window
     private readonly Rectangle[] _barsS, _barsL;
     private readonly Dictionary<string, FrameworkElement> _layers;
     private readonly Dictionary<FrameworkElement, ScaleTransform> _layerScale = new();
+    /// <summary>Per layer: scales content with the shape's live width, so it grows inside the notch instead of being cropped.</summary>
+    private readonly Dictionary<FrameworkElement, ScaleTransform> _layerFit = new();
+    private SpringParams _grow;
+    private int _tabSwap;
     private readonly TranslateTransform _musicSwipe = new();
 
     private sealed record ToastSpec(string Type, double Width, Color Glow, string Icon, Color IconBg, Color IconFg, string Text, string Value, Color ValueColor, bool Bar, int Ms);
@@ -87,6 +91,7 @@ public partial class NotchWindow : Window
         InitializeComponent();
 
         (_every, _mom) = Feels.Get(cfg.Feel);
+        _grow = GrowOf(_every);
         W = new Spring(cfg.IdleWidth, _every); H = new Spring(34, _every); R = new Spring(17, _every);
         LeanX = new Spring(0, _every); Off = new Spring(0, _every); Press = new Spring(1, SpringParams.Press, 0.0005);
         TabX = new Spring(0, _every); TabW = new Spring(80, _every); Pane = new Spring(0, _every);
@@ -98,8 +103,11 @@ public partial class NotchWindow : Window
             var sc = new ScaleTransform(0.94, 0.94);
             _layerScale[el] = sc;
             el.RenderTransformOrigin = new Point(0.5, 0);
+            var fit = new ScaleTransform(1, 1);
+            _layerFit[el] = fit;
             var g = new TransformGroup();
             g.Children.Add(sc);
+            g.Children.Add(fit);
             if (el == LMusic) g.Children.Add(_musicSwipe);
             el.RenderTransform = g;
         }
@@ -275,6 +283,14 @@ public partial class NotchWindow : Window
         var k = Key();
         var (w, h) = SizeOf(k);
         if (_hoverNudge && k != "hub") { w += 14; h += 3; }
+        bool changed = Math.Abs(w - W.Target) > 0.5 || Math.Abs(h - H.Target) > 0.5;
+        bool growing = w > W.Target + 0.5 || h > H.Target + 0.5;
+        if (changed && _drag == null)
+        {
+            // like the Dynamic Island: things arriving overshoot a touch, things leaving settle without a bounce
+            if (growing && SystemParameters.ClientAreaAnimation) { W.Kick(_grow, _every); H.Kick(_grow, _every); R.Kick(_grow, _every); }
+            else if (W.RestoreTo == null) { W.Params = H.Params = R.Params = _every; }
+        }
         W.Target = w; H.Target = h;
         R.Target = h <= 46 ? h / 2 : Math.Min(_cfg.CornerRadius, h / 2);
         if (k != _key) { SwitchLayers(k); _key = k; }
@@ -288,21 +304,39 @@ public partial class NotchWindow : Window
     }
 
     /// <summary>Content materialises a beat after the shape starts moving, and leaves quickly.</summary>
+    /// <summary>
+    /// Content materialises a beat after the shape starts moving (a short blur resolving to sharp) and leaves a little
+    /// faster than it came, blurring as it goes. Scale is handled per frame by the fit transform.
+    /// </summary>
     private void Fade(FrameworkElement el, bool on)
     {
         el.IsHitTestVisible = on;
         bool motion = SystemParameters.ClientAreaAnimation;
-        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
-        var dur = TimeSpan.FromMilliseconds(on ? 240 : 130);
-        var begin = on ? TimeSpan.FromMilliseconds(60) : TimeSpan.Zero;
-        el.BeginAnimation(OpacityProperty, new DoubleAnimation { To = on ? 1 : 0, Duration = dur, BeginTime = begin, EasingFunction = ease });
+        // what leaves clears out before what arrives is readable, so two layers never overlap
+        var dur = TimeSpan.FromMilliseconds(on ? 260 : 120);
+        var begin = on ? TimeSpan.FromMilliseconds(70) : TimeSpan.Zero;
+        el.BeginAnimation(OpacityProperty, new DoubleAnimation { To = on ? 1 : 0, Duration = dur, BeginTime = begin, EasingFunction = new CubicEase { EasingMode = on ? EasingMode.EaseOut : EasingMode.EaseIn } });
         var sc = _layerScale[el];
-        double s = on || !motion ? 1 : 0.94;
-        var a = new DoubleAnimation { To = s, Duration = dur, BeginTime = begin, EasingFunction = ease };
+        double s = on || !motion ? 1 : 0.96;
+        var a = new DoubleAnimation { To = s, Duration = TimeSpan.FromMilliseconds(on ? 380 : 120), BeginTime = begin, EasingFunction = new QuarticEase { EasingMode = EasingMode.EaseOut } };
         sc.BeginAnimation(ScaleTransform.ScaleXProperty, a);
         sc.BeginAnimation(ScaleTransform.ScaleYProperty, a);
-        if (on && !motion) { sc.BeginAnimation(ScaleTransform.ScaleXProperty, null); sc.BeginAnimation(ScaleTransform.ScaleYProperty, null); sc.ScaleX = sc.ScaleY = 1; }
+        if (!motion)
+        {
+            sc.BeginAnimation(ScaleTransform.ScaleXProperty, null); sc.BeginAnimation(ScaleTransform.ScaleYProperty, null); sc.ScaleX = sc.ScaleY = 1;
+            el.Effect = null;
+            return;
+        }
+        // blur: arrives soft and resolves, leaves by softening; removed when done so text renders crisp
+        var blur = el.Effect as System.Windows.Media.Effects.BlurEffect ?? new System.Windows.Media.Effects.BlurEffect { Radius = on ? 10 : 0, RenderingBias = System.Windows.Media.Effects.RenderingBias.Performance };
+        el.Effect = blur;
+        var b = new DoubleAnimation { To = on ? 0 : 8, Duration = TimeSpan.FromMilliseconds(on ? 300 : 120), BeginTime = begin, EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+        b.Completed += (_, _) => { if (el.Effect == blur && (on ? el.Opacity > 0.99 : true)) { blur.BeginAnimation(System.Windows.Media.Effects.BlurEffect.RadiusProperty, null); el.Effect = null; } };
+        blur.BeginAnimation(System.Windows.Media.Effects.BlurEffect.RadiusProperty, b);
     }
+
+    /// <summary>The "arrival" spring: a touch of overshoot on top of the chosen feel.</summary>
+    private static SpringParams GrowOf(SpringParams every) => new(Math.Min(every.DampingRatio, 1) * 0.84, every.Response * 1.08);
 
     private void Kick()
     {
@@ -381,14 +415,22 @@ public partial class NotchWindow : Window
         var vis = VisibleTabs();
         if (!vis.Contains(t)) t = vis[0];
         if (t != "now") CloseTimerEditor(animate: false);
+        int from = vis.IndexOf(_tab), to = vis.IndexOf(t);
         _tab = t;
-        Pane.Target = -vis.IndexOf(t) * PaneW;
+        double target = -to * PaneW;
         var b = TabButton(t);
         LHub.UpdateLayout();
         TabX.Target = b.TranslatePoint(new Point(0, 0), TabsRow).X;
         TabW.Target = b.ActualWidth;
-        if (instant) { Pane.Snap(Pane.Target); TabX.Snap(TabX.Target); TabW.Snap(TabW.Target); }
-        foreach (var tb in AllTabButtons) tb.Foreground = (string)tb.Tag == t ? Brushes.WhiteSmoke : (Brush)FindResource("Dim");
+        if (instant || !_hub || !SystemParameters.ClientAreaAnimation || from < 0 || from == to)
+        {
+            Pane.Snap(target);
+            ShowOnlyPane();
+            Strip.BeginAnimation(OpacityProperty, null); Strip.Opacity = 1;
+            if (instant) { TabX.Snap(TabX.Target); TabW.Snap(TabW.Target); }
+        }
+        else SwapPane(target, Math.Sign(to - from));
+        foreach (var tb in AllTabButtons) TintTab(tb, (string)tb.Tag == t, instant);
         if (t == "system") { _stats.Sample(); UpdateSystemUI(); }
         if (t == "clip") RenderClip();
         if (t == "notif") RenderNotifs();
@@ -396,6 +438,43 @@ public partial class NotchWindow : Window
         if (t == "dev") RenderDevices();
         if (t == "apps") RenderApps();
         Apply();
+    }
+
+    /// <summary>
+    /// Tab change: the current pane fades out quickly, the new one fades in already in place, drifting the last 24 px
+    /// from the side you're moving toward. Never scrolls past the panes in between.
+    /// </summary>
+    private void SwapPane(double target, int dir)
+    {
+        int token = ++_tabSwap;
+        var outA = new DoubleAnimation(0, TimeSpan.FromMilliseconds(90)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } };
+        outA.Completed += (_, _) =>
+        {
+            if (token != _tabSwap) return;   // a newer switch took over
+            ShowOnlyPane();   // the neighbours must not peek in while it drifts
+            Pane.Snap(target + dir * 24);
+            Pane.Target = target;
+            Pane.Params = _every;
+            Strip.BeginAnimation(OpacityProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(220)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+            EnsureFrames();
+        };
+        Strip.BeginAnimation(OpacityProperty, outA);
+    }
+
+    private void ShowOnlyPane()
+    {
+        var cur = PaneOf(_tab);
+        foreach (UIElement p in Strip.Children) p.Opacity = p == cur ? 1 : 0;
+    }
+
+    private void TintTab(Button tb, bool selected, bool instant)
+    {
+        var to = selected ? Color.FromRgb(0xF5, 0xF5, 0xF5) : ((SolidColorBrush)FindResource("Dim")).Color;
+        var from = tb.Foreground is SolidColorBrush cur ? cur.Color : to;
+        if (instant || from == to) { tb.Foreground = new SolidColorBrush(to); return; }
+        var brush = new SolidColorBrush(from);
+        brush.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(to, TimeSpan.FromMilliseconds(180)));
+        tb.Foreground = brush;
     }
 
     private void OpenHub(string mode, string? tab = null)
@@ -537,7 +616,7 @@ public partial class NotchWindow : Window
                 var ck = _notif != null ? "notif" : _toast != null ? "toast" : Activity();
                 d.Compact = SizeOf(ck);
                 d.Expanded = (_cfg.HubWidth, HubHeight(_tab));
-                foreach (var el in _layers.Values) { el.BeginAnimation(OpacityProperty, null); _layerScale[el].BeginAnimation(ScaleTransform.ScaleXProperty, null); _layerScale[el].BeginAnimation(ScaleTransform.ScaleYProperty, null); }
+                foreach (var el in _layers.Values) { el.Effect = null; el.BeginAnimation(OpacityProperty, null); _layerScale[el].BeginAnimation(ScaleTransform.ScaleXProperty, null); _layerScale[el].BeginAnimation(ScaleTransform.ScaleYProperty, null); }
                 foreach (var (k, el) in _layers) el.Opacity = k == d.KeyAtStart ? 1 : 0;
             }
             else if (_cfg.SwipeToSkip && Math.Abs(dx) > 8 && Math.Abs(dx) > Math.Abs(dy) && d.KeyAtStart == "music")
@@ -724,7 +803,15 @@ public partial class NotchWindow : Window
         Canvas.SetLeft(Notch, NX(w) - w / 2 + LeanX.Value + Off.Value);
         Canvas.SetTop(Notch, attached ? 0 : 10);
         PressScale.ScaleX = PressScale.ScaleY = Press.Value;
-        foreach (var el in _layers.Values) Canvas.SetLeft(el, (w - el.Width) / 2);
+        foreach (var el in _layers.Values)
+        {
+            Canvas.SetLeft(el, (w - el.Width) / 2);
+            if (el.Opacity <= 0.001) continue;
+            // content lives inside the shape: while the shape is narrower than the content, the content is scaled to it
+            double f = Math.Clamp(w / el.Width, 0.5, 1);
+            var fit = _layerFit[el];
+            if (Math.Abs(fit.ScaleX - f) > 0.0005) fit.ScaleX = fit.ScaleY = f;
+        }
 
         TabIndicatorX.X = TabX.Value;
         TabIndicator.Width = Math.Max(0, TabW.Value);
@@ -840,7 +927,7 @@ public partial class NotchWindow : Window
         PhaseDot.Fill = brush;
         PhaseDot.Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = c, BlurRadius = 8, ShadowDepth = 0, Opacity = 0.9 };
         PhaseText.Foreground = brush;
-        PhaseText.Text = FocusTimer.Label(_timer.Phase).ToUpperInvariant();
+        PhaseText.Text = FocusTimer.Label(_timer.Phase);
         PhaseCount.Text = _timer.Phase switch
         {
             Phase.Focus => $"{_timer.Session} of {_timer.Sessions}",
@@ -888,7 +975,7 @@ public partial class NotchWindow : Window
     private void UpdateSystemUI()
     {
         CpuValue.Text = $"{_stats.Cpu:0}%";
-        CpuCores.Text = $"{Environment.ProcessorCount} THREADS";
+        CpuCores.Text = $"{Environment.ProcessorCount} threads";
         double cw = CpuSpark.ActualWidth > 0 ? CpuSpark.ActualWidth : 140, chh = 26;
         var pts = new PointCollection();
         for (int i = 0; i < _stats.CpuHistory.Length; i++)
@@ -959,6 +1046,7 @@ public partial class NotchWindow : Window
     public void ApplySettings()
     {
         (_every, _mom) = Feels.Get(_cfg.Feel);
+        _grow = GrowOf(_every);
         foreach (var s in new[] { W, H, R, LeanX, Off, TabX, TabW, Pane, VolFill }) { s.Params = _every; s.RestoreTo = null; }
         _clip.SkipSecrets = _cfg.ClipSkipSecrets;
         if (_clip.Max != _cfg.ClipMax) _clip.ApplyMax(_cfg.ClipMax);
@@ -986,6 +1074,7 @@ public partial class NotchWindow : Window
         foreach (var a in args)
         {
             if (a == "--timer") _timer.Start();
+            if (a == "--demo") RunDemo();
             if (a == "--edit-timer") Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, OpenTimerEditor);
             if (a == "--sample")
             {
@@ -995,6 +1084,27 @@ public partial class NotchWindow : Window
                 _shelf.Add(System.IO.Directory.GetFiles(src).Take(3).Append(System.IO.Path.Combine(src, "NotchApp")).Where(p => System.IO.File.Exists(p) || System.IO.Directory.Exists(p)));
             }
             if (a.StartsWith("--hub")) Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () => OpenHub("sticky", a.Contains('=') ? a[(a.IndexOf('=') + 1)..] : null));
+        }
+    }
+
+    /// <summary>--demo: plays the main moments on a fixed schedule, for reviewing motion frame by frame.</summary>
+    private void RunDemo()
+    {
+        var steps = new (double At, Action Do)[]
+        {
+            (1.5, () => OpenHub("sticky", "now")),
+            (3.0, () => SetTab("clip")),
+            (4.0, () => SetTab("dev")),
+            (5.0, () => SetTab("now")),
+            (6.0, CloseHub),
+            (7.5, () => OnNotification(new NotifItem(1, "Messages", "", "Maya", "Are we still on for 7?", DateTimeOffset.Now, null, Color.FromRgb(0x34, 0xC7, 0x6F)))),
+            (11.5, () => ShowToast(new("volume", 260, Colors.White, "speaker", Color.FromArgb(0x30, 255, 255, 255), Colors.White, "Volume", "48", Colors.White, true, 1800))),
+        };
+        foreach (var (at, act) in steps)
+        {
+            var t = new DispatcherTimer { Interval = TimeSpan.FromSeconds(at) };
+            t.Tick += (_, _) => { t.Stop(); act(); };
+            t.Start();
         }
     }
 
