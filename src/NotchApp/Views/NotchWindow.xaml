@@ -65,6 +65,9 @@
   </Window.Resources>
 
   <Canvas x:Name="Root">
+    <!-- Floating style: the pill hangs a little below the top edge. This invisible strip (1/255 alpha, so it still
+         catches the cursor) fills the gap above it, so the cursor resting on the very top edge stays "on" the notch. -->
+    <Border x:Name="HoverGap" Background="#01000000" Height="0"/>
     <Border x:Name="Notch" Background="Black" CornerRadius="19" Width="236" Height="38" RenderTransformOrigin="0.5,0">
       <Border.RenderTransform><ScaleTransform x:Name="PressScale"/></Border.RenderTransform>
       <Border.Effect>

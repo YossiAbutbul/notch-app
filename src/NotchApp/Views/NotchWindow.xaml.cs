@@ -615,27 +615,16 @@ public partial class NotchWindow : Window
 
     private void WireInput()
     {
-        Notch.MouseEnter += (_, _) =>
-        {
-            _mouseOver = true;
-            _leaveGrace.Stop();
-            if (!_hub && _drag == null && _notif != null) { _hoverNudge = true; SetNotifOpen(true); return; }
-            if (!_hub && _drag == null)
-            {
-                _hoverNudge = true;   // grows slightly toward you: a hint of what a click or pull will do
-                Apply();
-                if (_cfg.OpenOnHover) { _hoverIntent.Interval = TimeSpan.FromMilliseconds(Math.Max(1, _cfg.HoverDelayMs)); _hoverIntent.Start(); }
-            }
-        };
-        Notch.MouseLeave += (_, _) =>
-        {
-            _mouseOver = false;
-            _hoverIntent.Stop();
-            if (_hoverNudge) { _hoverNudge = false; Apply(); }
-            SetNotifOpen(false);
-            if (_hub && _openMode == "hover" && _drag == null) _leaveGrace.Start();
-        };
+        // the notch and the strip above a floating pill are one hover area: entering either counts, and leaving is
+        // checked a beat later so crossing from one to the other (or the pill dropping away under a still cursor) isn't a leave
+        Notch.MouseEnter += (_, _) => HoverChanged();
+        HoverGap.MouseEnter += (_, _) => HoverChanged();
+        Notch.MouseLeave += (_, _) => Dispatcher.BeginInvoke(DispatcherPriority.Input, HoverChanged);
+        HoverGap.MouseLeave += (_, _) => Dispatcher.BeginInvoke(DispatcherPriority.Input, HoverChanged);
 
+        HoverGap.MouseLeftButtonDown += OnDown;
+        HoverGap.MouseRightButtonUp += (_, e) => { e.Handled = true; SettingsRequested?.Invoke(null); };
+        HoverGap.MouseWheel += OnWheel;
         Notch.MouseLeftButtonDown += OnDown;
         Notch.MouseMove += OnMove;
         Notch.MouseLeftButtonUp += (_, _) => EndDrag(false);
@@ -653,6 +642,33 @@ public partial class NotchWindow : Window
         TimerReset.Click += (_, _) => _timer.RestartPhase();
         FreeMemBtn.Click += async (_, _) => await FreeMemory();
         InitTimerEditor();
+    }
+
+    private bool OverNotch => Notch.IsMouseOver || HoverGap.IsMouseOver;
+
+    private void HoverChanged()
+    {
+        bool over = OverNotch;
+        if (over == _mouseOver) return;
+        _mouseOver = over;
+        if (over)
+        {
+            _leaveGrace.Stop();
+            if (!_hub && _drag == null && _notif != null) { _hoverNudge = true; SetNotifOpen(true); return; }
+            if (!_hub && _drag == null)
+            {
+                _hoverNudge = true;   // grows slightly toward you: a hint of what a click or pull will do
+                Apply();
+                if (_cfg.OpenOnHover) { _hoverIntent.Interval = TimeSpan.FromMilliseconds(Math.Max(1, _cfg.HoverDelayMs)); _hoverIntent.Start(); }
+            }
+        }
+        else
+        {
+            _hoverIntent.Stop();
+            if (_hoverNudge) { _hoverNudge = false; Apply(); }
+            SetNotifOpen(false);
+            if (_hub && _openMode == "hover" && _drag == null) _leaveGrace.Start();
+        }
     }
 
     private void OnDown(object sender, MouseButtonEventArgs e)
@@ -812,7 +828,7 @@ public partial class NotchWindow : Window
         Peek(p, k);
 
         // a click anywhere else closes a pinned hub
-        if (_hub && _openMode == "sticky" && (Native.GetAsyncKeyState(Native.VK_LBUTTON) & 0x8000) != 0 && !Notch.IsMouseOver && _drag == null)
+        if (_hub && _openMode == "sticky" && (Native.GetAsyncKeyState(Native.VK_LBUTTON) & 0x8000) != 0 && !OverNotch && _drag == null)
             CloseHub();
 
         if (_cfg.Display == "cursor" && ++_pollN % 10 == 0 && !_hub && _drag == null)
@@ -913,7 +929,7 @@ public partial class NotchWindow : Window
         bool lmb = (Native.GetAsyncKeyState(Native.VK_LBUTTON) & 0x8000) != 0;
         bool compact = !LineStyle && k is "music" or "timer" or "idle";   // a line covers nothing worth stepping away from
         double left = Canvas.GetLeft(Notch), top = Canvas.GetTop(Notch), w = Notch.Width, h = Notch.Height;
-        bool onPill = p.X >= left && p.X <= left + w && p.Y >= top && p.Y <= top + h;
+        bool onPill = p.X >= left && p.X <= left + w && p.Y >= 0 && p.Y <= top + h;   // the strip above a floating pill is the pill
         bool near = p.X >= left - 60 && p.X <= left + w + 60 && p.Y >= 0 && p.Y <= top + h + 90;
 
         if (lmb && !_lmbWasDown && compact && !_peeking && near && !onPill && _drag == null)
@@ -1012,7 +1028,13 @@ public partial class NotchWindow : Window
         Inner.Clip = Rounded(w, h, attached ? 0 : r, r);
         Canvas.SetLeft(Notch, NX(w) - w / 2 + LeanX.Value + Off.Value);
         // the line strip always touches the top edge, so flinging the cursor up finds it; a floating pill drops away from it
-        Canvas.SetTop(Notch, attached ? 0 : 10 * ink);
+        double top = attached ? 0 : 10 * ink;
+        Canvas.SetTop(Notch, top);
+        // ...and the strip above a floating pill still counts as the notch, so the top edge keeps it open
+        Canvas.SetLeft(HoverGap, Canvas.GetLeft(Notch));
+        Canvas.SetTop(HoverGap, 0);
+        HoverGap.Width = w;
+        HoverGap.Height = top;
         if (LineBar.Opacity > 0)
         {
             double lw = Math.Max(0, w - LinePad);
