@@ -49,6 +49,14 @@ public partial class NotchWindow : Window
     private DateTime _pausedAt = DateTime.MinValue;
     private bool _wasPlaying;
 
+    // Line style: music or the timer starting shows its notch for a few seconds before it settles into the line
+    private string? _announce;
+    private readonly DispatcherTimer _announceTimer = new() { Interval = TimeSpan.FromSeconds(3.2) };
+    private bool _timerWasRunning;
+    private string _lastSong = "";
+    /// <summary>How much of the line is drawn (0–1): it draws out from the centre as the notch collapses into it.</summary>
+    private readonly Spring LineDraw = new(1, new SpringParams(0.72, 0.55), 0.002);
+
     private Color _glowCur = Color.FromRgb(255, 98, 120), _glowTarget = Color.FromRgb(255, 98, 120);
     private double _glowA, _glowCurA, _clock;
 
@@ -129,6 +137,7 @@ public partial class NotchWindow : Window
         _fullscreen.Tick += (_, _) => CheckFullscreen();
         _dropLeave = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(140) };
         _dropLeave.Tick += (_, _) => { _dropLeave.Stop(); _dropHover = false; Apply(); };
+        _announceTimer.Tick += (_, _) => EndAnnounce();
 
         WireInput();
         WireLists();
@@ -257,10 +266,16 @@ public partial class NotchWindow : Window
         "notif" => (372, 86),
         "hub" => (_cfg.HubWidth, HubHeight(_tab)),
         "toast" => (_toast?.Width ?? 260, 40),
+        // Line style: closed, everything is a thin bar. The shape is a strip a little bigger than the bar, so it's easy
+        // to land on; only the bar is drawn. Something live (music, timer) gets a longer bar than idle.
+        "music" or "timer" when LineStyle && _announce != k => (_cfg.IdleWidth + LinePad, 12),
         "music" => (236, 38),
         "timer" => (206, 38),
-        _ => (_cfg.IdleWidth, 34),
+        _ => LineStyle ? (Math.Round(_cfg.IdleWidth * 0.7) + LinePad, 12) : (_cfg.IdleWidth, 34),
     };
+
+    private bool LineStyle => _cfg.IdleStyle != "pill";
+    private const double LinePad = 24;
 
     /// <summary>Every pane is exactly as tall as its content, so the hub never shows dead space.</summary>
     private double PaneHeight(string t) => t switch
@@ -283,7 +298,14 @@ public partial class NotchWindow : Window
         if (_drag?.Axis == 'y') return;
         var k = Key();
         var (w, h) = SizeOf(k);
-        if (_hoverNudge && k != "hub") { w += 14; h += 3; }
+        if (_hoverNudge && k != "hub")
+        {
+            // resting on a line grows it into its notch (a small pill when idle, the music or timer pill when live):
+            // a peek at what it holds, and a hint that it opens
+            if (LineStyle && k is "idle" or "music" or "timer")
+                (w, h) = k == "idle" ? (_cfg.IdleWidth, 34) : k == "music" ? (236, 38) : (206, 38);
+            else { w += 14; h += 3; }
+        }
         bool changed = Math.Abs(w - W.Target) > 0.5 || Math.Abs(h - H.Target) > 0.5;
         bool growing = w > W.Target + 0.5 || h > H.Target + 0.5;
         if (changed && _drag == null)
@@ -291,6 +313,21 @@ public partial class NotchWindow : Window
             // like the Dynamic Island: things arriving overshoot a touch, things leaving settle without a bounce
             if (growing && SystemParameters.ClientAreaAnimation) { W.Kick(_grow, _every); H.Kick(_grow, _every); R.Kick(_grow, _every); }
             else if (W.RestoreTo == null) { W.Params = H.Params = R.Params = _every; }
+        }
+        // collapsing into the line from anything bigger (the hub closing, a pop-up ending): the line draws itself out
+        // from the centre while the shape dissolves into it, instead of appearing at full length
+        bool toLine = LineStyle && h <= 12 && !_hoverNudge;
+        if (toLine && k != _key && _key != "" && H.Value > 14 && SystemParameters.ClientAreaAnimation)
+        {
+            LineDraw.Snap(0.15);
+            LineDraw.Target = 1;
+        }
+        // settling into the line is a calmer move than the everyday spring: a third slower, so the dissolve can be seen
+        if (toLine && changed && _drag == null)
+        {
+            var calm = new SpringParams(1.0, _every.Response * 1.35);
+            W.Params = H.Params = R.Params = calm;
+            W.RestoreTo = H.RestoreTo = R.RestoreTo = _every;
         }
         W.Target = w; H.Target = h;
         R.Target = h <= 46 ? h / 2 : Math.Min(_cfg.CornerRadius, h / 2);
@@ -755,6 +792,8 @@ public partial class NotchWindow : Window
         }
         if (Math.Abs(lean - LeanX.Target) > 0.05) { LeanX.Target = lean; EnsureFrames(); }
 
+        Peek(p, k);
+
         // a click anywhere else closes a pinned hub
         if (_hub && _openMode == "sticky" && (Native.GetAsyncKeyState(Native.VK_LBUTTON) & 0x8000) != 0 && !Notch.IsMouseOver && _drag == null)
             CloseHub();
@@ -764,6 +803,131 @@ public partial class NotchWindow : Window
             var under = Displays.Under(new System.Drawing.Point(cp.X, cp.Y));
             if (under.Id != _display?.Id) MoveTo(under);
         }
+    }
+
+    // ================================================================ the line
+
+    /// <summary>
+    /// Something just started (a song, the timer): in Line style it shows its notch for a few seconds, so you see what
+    /// started, then collapses into the line.
+    /// </summary>
+    private void Announce(string k)
+    {
+        if (!LineStyle || _hub) return;
+        _announce = k;
+        _announceTimer.Stop();
+        _announceTimer.Start();
+        LineDraw.Snap(1);
+        Apply();
+    }
+
+    /// <summary>
+    /// The notch collapses up into the edge while the line draws itself out from the centre (with a little overshoot)
+    /// and glows in its colour for a moment, as if the notch had been poured into it.
+    /// </summary>
+    private void EndAnnounce()
+    {
+        _announceTimer.Stop();
+        if (_announce == null) return;
+        _announce = null;
+        if (SystemParameters.ClientAreaAnimation && LineStyle)
+        {
+            LineDraw.Snap(0);
+            LineDraw.Target = 1;
+            var c = Key() == "timer" ? FocusTimer.ColorOf(_timer.Phase) : _media.ArtColor;
+            var glow = new System.Windows.Media.Effects.DropShadowEffect { Color = c, BlurRadius = 14, ShadowDepth = 0, Opacity = 0 };
+            LineBar.Effect = glow;
+            var a = new DoubleAnimationUsingKeyFrames { Duration = TimeSpan.FromMilliseconds(1600) };
+            a.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(180))));
+            a.KeyFrames.Add(new EasingDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(480)), new CubicEase { EasingMode = EasingMode.EaseOut }));
+            a.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(1600)), new CubicEase { EasingMode = EasingMode.EaseIn }));
+            a.Completed += (_, _) => { if (LineBar.Effect == glow) LineBar.Effect = null; };
+            glow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.OpacityProperty, a);
+        }
+        Apply();
+        EnsureFrames();
+    }
+
+    /// <summary>
+    /// What the line shows: grey when idle; the timer's time left in its phase colour (dimmed while paused); the song's
+    /// progress in the album colour (dimmed while paused, full for a live stream).
+    /// </summary>
+    private void UpdateLine()
+    {
+        if (!LineStyle) return;
+        string k = Key();
+        double lw = LineBar.Width is double d && !double.IsNaN(d) ? d : 0;
+        if (k == "timer")
+        {
+            var c = FocusTimer.ColorOf(_timer.Phase);
+            SetLine(Color.FromArgb(0x55, c.R, c.G, c.B), c, _timer.Total > 0 ? _timer.Left / _timer.Total : 0, _timer.Running ? 1 : 0.55, lw);
+        }
+        else if (k == "music")
+        {
+            var c = _media.ArtColor;
+            double len = _media.Duration.TotalSeconds;
+            SetLine(Color.FromArgb(0x55, c.R, c.G, c.B), c, len > 0 ? Math.Clamp(_media.Position.TotalSeconds / len, 0, 1) : 1, _media.IsPlaying ? 1 : 0.55, lw);
+        }
+        else SetLine(Color.FromRgb(0x6A, 0x6A, 0x74), Colors.Transparent, 0, 1, lw);
+    }
+
+    private void SetLine(Color track, Color fill, double fraction, double strength, double width)
+    {
+        if (LineTrack.Background is not SolidColorBrush tb || tb.IsFrozen) LineTrack.Background = tb = new SolidColorBrush(track);
+        if (tb.Color != track) tb.Color = track;
+        if (LineFill.Background is not SolidColorBrush fb || fb.IsFrozen) LineFill.Background = fb = new SolidColorBrush(fill);
+        if (fb.Color != fill) fb.Color = fill;
+        LineFill.Width = Math.Round(width * Math.Clamp(fraction, 0, 1), 1);
+        LineBar.Children[0].Opacity = LineFill.Opacity = strength;
+    }
+
+    // ================================================================ stepping aside
+
+    private bool _peeking, _lmbWasDown;
+    private DateTime _peekUntil;
+
+    /// <summary>
+    /// A compact pill (music, timer, or the idle pill) covers whatever is under it. Clicking just below or beside it
+    /// means you're working there, so it fades to a ghost and lets every click through for a few seconds. It comes
+    /// back once that time is up and the cursor has moved away.
+    /// </summary>
+    private void Peek(Point p, string k)
+    {
+        bool lmb = (Native.GetAsyncKeyState(Native.VK_LBUTTON) & 0x8000) != 0;
+        bool compact = !LineStyle && k is "music" or "timer" or "idle";   // a line covers nothing worth stepping away from
+        double left = Canvas.GetLeft(Notch), top = Canvas.GetTop(Notch), w = Notch.Width, h = Notch.Height;
+        bool onPill = p.X >= left && p.X <= left + w && p.Y >= top && p.Y <= top + h;
+        bool near = p.X >= left - 60 && p.X <= left + w + 60 && p.Y >= 0 && p.Y <= top + h + 90;
+
+        if (lmb && !_lmbWasDown && compact && !_peeking && near && !onPill && _drag == null)
+        {
+            _peeking = true;
+            ClickThrough(true);
+            FadeNotch(0.15, 160);
+        }
+        if (_peeking && lmb && near) _peekUntil = DateTime.UtcNow.AddSeconds(3);   // still working there
+        _lmbWasDown = lmb;
+
+        if (_peeking && (!compact || (DateTime.UtcNow > _peekUntil && !near)))
+        {
+            _peeking = false;
+            ClickThrough(false);
+            FadeNotch(1, 260);
+        }
+    }
+
+    private void FadeNotch(double to, int ms)
+    {
+        if (!SystemParameters.ClientAreaAnimation) { Notch.BeginAnimation(OpacityProperty, null); Notch.Opacity = to; return; }
+        Notch.BeginAnimation(OpacityProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(ms)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+    }
+
+    private void ClickThrough(bool on)
+    {
+        if (_hwnd == IntPtr.Zero) return;
+        long ex = (long)Native.GetWindowLongPtr(_hwnd, Native.GWL_EXSTYLE);
+        ex = on ? ex | Native.WS_EX_TRANSPARENT : ex & ~Native.WS_EX_TRANSPARENT;
+        Native.SetWindowLongPtr(_hwnd, Native.GWL_EXSTYLE, new IntPtr(ex));
     }
 
     // ================================================================ frame loop
@@ -784,7 +948,7 @@ public partial class NotchWindow : Window
         _lastRender = t;
         _clock += dt;
 
-        foreach (var s in new[] { W, H, R, LeanX, Press, Off, TabX, TabW, Pane, VolFill, Swipe }) s.Step(dt);
+        foreach (var s in new[] { W, H, R, LeanX, Press, Off, TabX, TabW, Pane, VolFill, Swipe, LineDraw }) s.Step(dt);
         Render();
 
         if (!NeedsFrames())
@@ -797,7 +961,7 @@ public partial class NotchWindow : Window
     private bool NeedsFrames()
     {
         bool springs = !(W.IsSettled && H.IsSettled && R.IsSettled && LeanX.IsSettled && Press.IsSettled && Off.IsSettled
-                       && TabX.IsSettled && TabW.IsSettled && Pane.IsSettled && VolFill.IsSettled && Swipe.IsSettled);
+                       && TabX.IsSettled && TabW.IsSettled && Pane.IsSettled && VolFill.IsSettled && Swipe.IsSettled && LineDraw.IsSettled);
         bool glow = Math.Abs(_glowCurA - _glowA) > 0.004 || Dist(_glowCur, _glowTarget) > 3;
         bool live = (_key == "music" && _media.IsPlaying)
                  || (_key == "hub" && ((_tab == "now" && _media.IsPlaying) || (_tab == "timer" && _timer.Running)))
@@ -809,16 +973,39 @@ public partial class NotchWindow : Window
 
     private void Render()
     {
-        double w = Math.Max(20, W.Value + Math.Abs(LeanX.Value) * 0.9), h = Math.Max(14, H.Value);
+        double w = Math.Max(20, W.Value + Math.Abs(LeanX.Value) * 0.9), h = Math.Max(4, H.Value);
         double r = Math.Clamp(R.Value, 0, Math.Min(h / 2, w / 2));
         bool attached = _cfg.Style == "attached";
+
+        // "ink": how much of a black shape there is. The line strip (12 px or less) is fully see-through, only a
+        // 1/255 alpha so it still catches the cursor; growing past it, the black and its contents fill in and the
+        // line fades out.
+        // the dissolve runs over the last 22 px of height (pill → strip), so closing into the line is gradual, not a pop
+        double ink = Math.Clamp((h - 12) / 22, 0, 1);
+        var fill = Color.FromArgb((byte)Math.Max(1, ink * 255), 0, 0, 0);
+        if (Notch.Background is SolidColorBrush nb && !nb.IsFrozen) { if (nb.Color != fill) nb.Color = fill; }
+        else Notch.Background = new SolidColorBrush(fill);
+        Inner.Opacity = ink;
+        LineBar.Opacity = LineStyle ? 1 - ink : 0;
 
         Notch.Width = w; Notch.Height = h;
         Notch.CornerRadius = attached ? new CornerRadius(0, 0, r, r) : new CornerRadius(r);
         Inner.Width = w; Inner.Height = h;
         Inner.Clip = Rounded(w, h, attached ? 0 : r, r);
         Canvas.SetLeft(Notch, NX(w) - w / 2 + LeanX.Value + Off.Value);
-        Canvas.SetTop(Notch, attached ? 0 : 10);
+        // the line strip always touches the top edge, so flinging the cursor up finds it; a floating pill drops away from it
+        Canvas.SetTop(Notch, attached ? 0 : 10 * ink);
+        if (LineBar.Opacity > 0)
+        {
+            double lw = Math.Max(0, w - LinePad);
+            LineBar.Width = lw;
+            if (LineBar.RenderTransform is not ScaleTransform ls) LineBar.RenderTransform = ls = new ScaleTransform();
+            LineBar.RenderTransformOrigin = new Point(0.5, 0);
+            ls.ScaleX = Math.Max(0, LineDraw.Value);
+            Canvas.SetLeft(LineBar, Canvas.GetLeft(Notch) + LinePad / 2);
+            Canvas.SetTop(LineBar, 0);
+            UpdateLine();
+        }
         PressScale.ScaleX = PressScale.ScaleY = Press.Value;
         foreach (var el in _layers.Values)
         {
@@ -912,7 +1099,11 @@ public partial class NotchWindow : Window
     private void OnMediaChanged()
     {
         if (_wasPlaying && !_media.IsPlaying) _pausedAt = DateTime.UtcNow;
+        // a song starting (or a new one coming on) shows its notch for a moment in Line style
+        bool started = _media.IsPlaying && (!_wasPlaying || _media.Title != _lastSong);
         _wasPlaying = _media.IsPlaying;
+        if (_media.IsPlaying) _lastSong = _media.Title;
+        if (started && _cfg.IsLive("music")) Dispatcher.BeginInvoke(() => Announce("music"));
 
         Brush art = _media.Art != null
             ? new ImageBrush(_media.Art) { Stretch = Stretch.UniformToFill }
@@ -935,6 +1126,7 @@ public partial class NotchWindow : Window
     {
         var pos = _media.Position;
         var len = _media.Duration;
+        if (LineBar.Opacity > 0) UpdateLine();
         SongPos.Text = Fmt(pos);
         // time left, like iOS; a live stream has no length
         SongLen.Text = len.TotalSeconds < 1 ? "Live" : "-" + Fmt(len - pos > TimeSpan.Zero ? len - pos : TimeSpan.Zero);
@@ -944,6 +1136,9 @@ public partial class NotchWindow : Window
 
     private void UpdateTimerUI()
     {
+        // starting the timer shows its notch for a moment in Line style
+        if (_timer.Running && !_timerWasRunning && _cfg.IsLive("timer")) Dispatcher.BeginInvoke(() => Announce("timer"));
+        _timerWasRunning = _timer.Running;
         var c = FocusTimer.ColorOf(_timer.Phase);
         var brush = new SolidColorBrush(c);
         Pie.Color = c; Dial.Color = c;
@@ -976,6 +1171,7 @@ public partial class NotchWindow : Window
     private void UpdateTimerText()
     {
         var s = FmtTimer(_timer.Left);
+        if (LineBar.Opacity > 0) UpdateLine();
         TimerSmall.Text = s;
         DialTime.Text = s;
         Pie.Fraction = _timer.Total > 0 ? _timer.Left / _timer.Total : 0;

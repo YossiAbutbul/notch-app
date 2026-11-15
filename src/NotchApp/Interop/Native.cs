@@ -7,6 +7,7 @@ internal static class Native
     public const int GWL_EXSTYLE = -20;
     public const long WS_EX_TOOLWINDOW = 0x00000080;   // no taskbar button, no Alt+Tab
     public const long WS_EX_NOACTIVATE = 0x08000000;   // clicking the notch never steals focus
+    public const long WS_EX_TRANSPARENT = 0x00000020;  // every click passes through to the window below
 
     public static readonly IntPtr HWND_TOPMOST = new(-1);
     public const uint SWP_NOSIZE = 0x0001, SWP_NOMOVE = 0x0002, SWP_NOACTIVATE = 0x0010, SWP_SHOWWINDOW = 0x0040;

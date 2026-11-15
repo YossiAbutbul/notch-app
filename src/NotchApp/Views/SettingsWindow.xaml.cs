@@ -190,7 +190,11 @@ public partial class SettingsWindow : Window
                 Combo(opts.ToArray(), () => _cfg.Display, v => { _cfg.Display = v; Changed(true); })));
         Group("Placement",
             Row("Position", "Along the top edge of the screen", Seg([("left", "Left"), ("center", "Center"), ("right", "Right")], () => _cfg.Position, v => { _cfg.Position = v; Changed(true); })),
-            Row("Style", null, Seg([("floating", "Floating"), ("attached", "Attached to edge")], () => _cfg.Style, v => { _cfg.Style = v; Changed(); })));
+            Row("Style", null, Seg([("floating", "Floating"), ("attached", "Attached to edge")], () => _cfg.Style, v => { _cfg.Style = v; Changed(); })),
+            Row("When closed, show", _cfg.IdleStyle == "pill"
+                    ? "The black notch, with music and the timer inside it"
+                    : "A thin line at the top edge that covers almost nothing. Music and the timer show as a progress line in their colour; rest the cursor on it to see more",
+                Seg([("line", "Line"), ("pill", "Notch")], () => _cfg.IdleStyle == "pill" ? "pill" : "line", v => { _cfg.IdleStyle = v; Changed(true); })));
         Group("Size",
             Row("Idle width", null, Slide(80, 200, 2, () => _cfg.IdleWidth, v => { _cfg.IdleWidth = v; Changed(); }, v => $"{v:0} px")),
             Row("Expanded width", null, Slide(540, 680, 4, () => _cfg.HubWidth, v => { _cfg.HubWidth = v; Changed(); }, v => $"{v:0} px")),

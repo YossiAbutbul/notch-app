@@ -432,5 +432,12 @@
         </Grid>
       </Canvas>
     </Border>
+
+    <!-- Line style: the closed notch is a thin bar at the top edge (the shape under it is an invisible strip you can
+         hover). Idle it's grey; with music or the timer it's a progress line in their colour. -->
+    <Grid x:Name="LineBar" Height="4" Opacity="0" IsHitTestVisible="False">
+      <Border x:Name="LineTrack" CornerRadius="0,0,2,2" Background="#6A6A74"/>
+      <Border x:Name="LineFill" CornerRadius="0,0,2,2" HorizontalAlignment="Left" Width="0"/>
+    </Grid>
   </Canvas>
 </Window>

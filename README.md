@@ -31,6 +31,7 @@ Launch options for checking states without the mouse: `--hub`, `--hub=clip` (or 
 ## What works now
 
 - Transparent, click-through, always-on-top window that never steals focus, crisp on mixed-DPI setups.
+- Closed, the notch is a thin line at the top edge that covers almost nothing: grey when idle, a progress line in the timer's or the album's colour when something is live. Rest the cursor on it and it grows into the notch. Settings → Display → When closed, show: Line or Notch (the black pill). Clicking just below or beside a live pill (music, timer) fades it out of the way and lets clicks through for a few seconds.
 - Spring engine from the motion spec (damping ratio + response, momentum spring for flicks and arrivals, press feedback).
 - Hover to open (with intent delay), click to pin, pull down to open and flick up to close (1:1 tracking, rubber band, momentum projection, velocity hand-off), click anywhere else to close.
 - Now playing from any app (Windows media sessions): album art, colour-matched glow, play/pause/next/previous, progress, swipe the pill to skip.

@@ -36,6 +36,11 @@ public sealed class AppSettings
     public string Position { get; set; } = "center";      // left | center | right
     public string Style { get; set; } = "floating";       // floating | attached
     public double IdleWidth { get; set; } = 124;
+    /// <summary>
+    /// What the closed notch looks like: "line" (a thin bar at the top edge; music and the timer are progress lines in
+    /// their colour; it grows into the notch when the cursor rests on it) or "pill" (the black notch with them inside).
+    /// </summary>
+    public string IdleStyle { get; set; } = "line";
     public double HubWidth { get; set; } = 600;
     public double CornerRadius { get; set; } = 32;
 
