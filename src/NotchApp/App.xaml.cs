@@ -18,6 +18,14 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        if (!IsSupportedWindows())
+        {
+            MessageBox.Show(
+                "Notch needs Windows 10 version 2004 or later.\n\nUpdate Windows from Settings > Windows Update, then run Notch again.",
+                "Notch", MessageBoxButton.OK, MessageBoxImage.Information);
+            Shutdown();
+            return;
+        }
 #if PACKAGED
         // the published Notch.exe is its own installer and uninstaller
         if (e.Args.Contains("--uninstall"))
@@ -39,6 +47,9 @@ public partial class App : Application
 #endif
         StartApp(e.Args);
     }
+
+    /// <summary>Media sessions, notifications and the other WinRT APIs Notch uses need Windows 10 2004 (build 19041).</summary>
+    private static bool IsSupportedWindows() => OperatingSystem.IsWindowsVersionAtLeast(10, 0, 19041);
 
     private async void StartApp(string[] args)
     {

@@ -13,7 +13,7 @@ Build the installer exe, then run it:
 powershell -NoProfile -File tools\publish.ps1
 ```
 
-This makes `dist\Notch.exe`: one self-contained file (about 75 MB, no .NET needed). Double-click it and choose **Install**, or **Run without installing**. Installing puts Notch in `%LocalAppData%\Programs\Notch` for your account (no admin), adds Start menu and desktop shortcuts, can start it when you sign in, and lists it in Settings → Apps for uninstalling (also Settings → About → Uninstall in Notch). Running a newer `Notch.exe` updates the installed copy, closing the running one first. The first launch takes a few seconds while it unpacks.
+This makes `dist\Notch.exe`: one self-contained file (about 75 MB, no .NET needed). Double-click it and choose **Install**, or **Run without installing**. Installing puts Notch in `%LocalAppData%\Programs\Notch` for your account (no admin), adds Start menu and desktop shortcuts, can start it when you sign in, and lists it in Settings → Apps for uninstalling (also Settings → About → Uninstall in Notch). Running a newer `Notch.exe` updates the installed copy, closing the running one first. The first launch takes a few seconds while it unpacks. It needs nothing else installed; on Windows older than 10 version 2004 it says so and exits.
 
 The icon is drawn by `tools\make-icon.ps1` (writes `src\NotchApp\Assets\Notch.ico`).
 
