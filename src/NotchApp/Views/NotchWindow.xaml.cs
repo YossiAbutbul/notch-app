@@ -245,10 +245,16 @@ public partial class NotchWindow : Window
     {
         bool hide = false;
         if (_cfg.HideInFullscreen && Native.SHQueryUserNotificationState(out var st) == 0) hide = st is 2 or 3 or 4;
-        if (hide == _hidden) return;
-        _hidden = hide;
-        Visibility = hide ? Visibility.Hidden : Visibility.Visible;
-        if (!hide) Align();
+        if (hide != _hidden)
+        {
+            _hidden = hide;
+            Visibility = hide ? Visibility.Hidden : Visibility.Visible;
+            if (!hide) Align();
+        }
+        // Windows sometimes drops a topmost window below ordinary ones (after a full-screen app, Show desktop, Task
+        // View, sleep) while it keeps the topmost flag, so the notch sits hidden behind maximized apps: put it back on top
+        if (!_hidden && _hwnd != IntPtr.Zero)
+            Native.SetWindowPos(_hwnd, Native.HWND_TOPMOST, 0, 0, 0, 0, Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
     }
 
     // ================================================================ state
