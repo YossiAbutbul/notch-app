@@ -2,7 +2,6 @@
 
 A fluid, Apple-style notch for Windows: a small black pill at the top of the screen that shows what's playing and your focus timer, and opens into a hub when you hover it, click it, or pull it down.
 
-- `notch-playground.html`: the motion lab used to design the feel, states and settings (open it in a browser).
 - `src/NotchApp`: the Windows app (WPF on .NET 11).
 
 ## Install
