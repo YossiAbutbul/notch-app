@@ -38,9 +38,9 @@ public partial class NotchWindow
         DevTiles.Children.Add(DevTile("wifi", "Wi-Fi", wifiSub, _dev.WifiOn, Blue, async () => await _dev.SetWifiAsync(!_dev.WifiOn)));
         DevTiles.Children.Add(DevTile("bt", "Bluetooth", btSub, _dev.BtOn, Blue, async () => await _dev.SetBluetoothAsync(!_dev.BtOn)));
         // Windows has no public switch for these two, so they open the right Settings page
-        DevTiles.Children.Add(DevTile("plane", "Airplane mode", "Open settings", false, Orange, () => { DevicesService.OpenSettings("network-airplanemode"); return Task.CompletedTask; }));
+        DevTiles.Children.Add(DevTile("plane", "Airplane mode", "Open settings", false, Orange, () => { DevicesService.OpenSettings("network-airplanemode"); return Task.CompletedTask; }, opens: true));
         _dndShown = QuietMode.On;
-        DevTiles.Children.Add(DevTile("moon", "Do not disturb", _dndShown ? "On" : "Off", _dndShown, Purple, () => { DevicesService.OpenSettings("notifications"); return Task.CompletedTask; }));
+        DevTiles.Children.Add(DevTile("moon", "Do not disturb", _dndShown ? "On" : "Off", _dndShown, Purple, () => { DevicesService.OpenSettings("notifications"); return Task.CompletedTask; }, opens: true));
 
         DevList.Children.Clear();
         if (!_dev.BtOn)
@@ -51,7 +51,8 @@ public partial class NotchWindow
             foreach (var d in _dev.Devices) DevList.Children.Add(DevRow(d));
     }
 
-    private Button DevTile(string icon, string label, string sub, bool on, Color accent, Func<Task> act)
+    /// <param name="opens">The tile opens a Settings page instead of switching something here: it wears a small arrow.</param>
+    private Button DevTile(string icon, string label, string sub, bool on, Color accent, Func<Task> act, bool opens = false)
     {
         var sp = new StackPanel { HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Stretch };
         // "on" is a tint of the accent with the icon in the accent, not a solid block: these are set-and-forget
@@ -67,6 +68,8 @@ public partial class NotchWindow
             Background = on ? new SolidColorBrush(Color.FromArgb(0x3D, accent.R, accent.G, accent.B)) : (Brush)FindResource("Card"),
             Content = new Grid { Width = 96, Children = { sp } },
         };
+        if (opens)
+            ((Grid)b.Content).Children.Add(new IconEl { Kind = "out", Width = 13, Height = 13, StrokeWidth = 2, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 1, -2, 0), Foreground = (Brush)FindResource("Dim") });
         b.Template = TileTemplate();
         b.Click += async (_, _) => await act();
         return b;
@@ -79,16 +82,13 @@ public partial class NotchWindow
 
     /// <summary>
     /// Tiles get a 20 px corner (concentric with the 32 px hub at a 12 px inset) instead of the pill shape, and the same
-    /// feel as every other button: an instant dip on mouse-down, a springy release, a hover sheen that fades.
+    /// feel as every other button: a hover sheen that fades, and the press dip from PressFeedback.
     /// </summary>
     private ControlTemplate TileTemplate(bool centered = false)
     {
         ref var cached = ref centered ? ref _tileCentered : ref _tile;
         if (cached != null) return cached;
         string r = centered ? "14" : "20", pad = centered ? "2" : "12,9,12,9", ha = centered ? "Center" : "Left", va = centered ? "Center" : "Top";
-        string Anim(string target, string to, string ms, string ease) =>
-            $"<DoubleAnimation Storyboard.TargetName='S' Storyboard.TargetProperty='{target}' To='{to}' Duration='0:0:{ms}'><DoubleAnimation.EasingFunction>{ease}</DoubleAnimation.EasingFunction></DoubleAnimation>";
-        string down = "<QuadraticEase EasingMode='EaseOut'/>", up = "<BackEase EasingMode='EaseOut' Amplitude='0.35'/>";
         var xaml = $@"
 <ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml' TargetType='Button'>
   <Grid x:Name='Root' RenderTransformOrigin='0.5,0.5'>
@@ -102,10 +102,6 @@ public partial class NotchWindow
     <Trigger Property='IsMouseOver' Value='True'>
       <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName='Hover' Storyboard.TargetProperty='Opacity' To='1' Duration='0:0:0.12'/></Storyboard></BeginStoryboard></Trigger.EnterActions>
       <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName='Hover' Storyboard.TargetProperty='Opacity' To='0' Duration='0:0:0.24'/></Storyboard></BeginStoryboard></Trigger.ExitActions>
-    </Trigger>
-    <Trigger Property='IsPressed' Value='True'>
-      <Trigger.EnterActions><BeginStoryboard><Storyboard>{Anim("ScaleX", "0.95", "0.09", down)}{Anim("ScaleY", "0.95", "0.09", down)}</Storyboard></BeginStoryboard></Trigger.EnterActions>
-      <Trigger.ExitActions><BeginStoryboard><Storyboard>{Anim("ScaleX", "1", "0.36", up)}{Anim("ScaleY", "1", "0.36", up)}</Storyboard></BeginStoryboard></Trigger.ExitActions>
     </Trigger>
   </ControlTemplate.Triggers>
 </ControlTemplate>";

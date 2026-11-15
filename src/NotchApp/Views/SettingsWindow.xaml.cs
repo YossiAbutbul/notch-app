@@ -133,7 +133,7 @@ public partial class SettingsWindow : Window
             Row("Hover delay", "How long the cursor rests before it opens", Slide(0, 400, 10, () => _cfg.HoverDelayMs, v => { _cfg.HoverDelayMs = (int)v; Changed(); }, v => $"{v:0} ms"), enabled: _cfg.OpenOnHover),
             Row("Pull down to open", "Drag the notch down to open it, flick it up to close", Toggle(() => _cfg.PullToOpen, v => { _cfg.PullToOpen = v; Changed(); })),
             Row("When the hub opens, show", null, Combo(
-                new[] { ("auto", "The first tab, on the left"), ("playing", "What's running or playing") }.Concat(_cfg.Tabs.Where(t => t.On).Select(t => (t.Id, TabNames[t.Id]))).ToArray(),
+                new[] { ("auto", "The last one you used"), ("left", "Always the first tab, on the left"), ("playing", "What's running or playing") }.Concat(_cfg.Tabs.Where(t => t.On).Select(t => (t.Id, TabNames[t.Id]))).ToArray(),
                 () => _cfg.DefaultTab, v => { _cfg.DefaultTab = v; Changed(); })));
         Group("Gestures",
             Row("Scroll on the notch to change volume", null, Toggle(() => _cfg.ScrollForVolume, v => { _cfg.ScrollForVolume = v; Changed(); })),

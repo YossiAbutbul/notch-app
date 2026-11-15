@@ -143,6 +143,15 @@ public sealed partial class ClipboardHistory
     }
 
     /// <summary>Example items for checking the layout (launch option --sample); the system clipboard is not touched.</summary>
+    /// <summary>An example image (for --sample), as if it had been copied from <paramref name="source"/>.</summary>
+    public void AddSampleImage(BitmapSource img, string source, int minsAgo)
+    {
+        img.Freeze();
+        Items.Add(new ClipItem { Id = _nextId++, Kind = ClipKind.Image, Text = $"Image · {img.PixelWidth} × {img.PixelHeight}", Source = source, Image = img, Thumb = MakeThumb(img), At = DateTime.Now.AddMinutes(-minsAgo) });
+        Items.Sort((a, b) => b.At.CompareTo(a.At));
+        Changed?.Invoke();
+    }
+
     public void AddSamples()
     {
         var now = DateTime.Now;

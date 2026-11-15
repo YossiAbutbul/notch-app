@@ -14,7 +14,7 @@
     <RootNamespace>NotchApp</RootNamespace>
     <AssemblyName>Notch</AssemblyName>
     <Product>Notch</Product>
-    <Version>1.2.1</Version>
+    <Version>1.3.4</Version>
     <ApplicationIcon>Assets/Notch.ico</ApplicationIcon>
     <Company>Notch</Company>
     <Description>A fluid, Apple-style notch for Windows</Description>

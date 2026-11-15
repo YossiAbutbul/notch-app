@@ -29,17 +29,19 @@ public partial class NotchWindow
 
     private bool Muted(NotifItem n) => _cfg.NotifMuted.Contains(n.App, StringComparer.OrdinalIgnoreCase);
 
-    private void OnNotification(NotifItem n)
+    private void OnNotification(NotifItem n) => OnNotification(n, false);
+
+    private void OnNotification(NotifItem n, bool example)
     {
         if (_hub || _hidden || !_cfg.IsLive("notif") || Muted(n)) return;   // the Notifications list still has it
-        if (_cfg.NotifQuietInDnd && QuietMode.On) return;                    // Do not disturb: same, it waits in the Notifications tab
+        if (!example && _cfg.NotifQuietInDnd && QuietMode.On) return;                    // Do not disturb: same, it waits in the Notifications tab
         bool first = _notif == null;
         _notif = n;
         FillNotif(n);
         _toast = null;   // a notification outranks a small pop-up
         _notifTimer!.Stop();
         _notifTimer.Interval = TimeSpan.FromSeconds(_cfg.NotifSeconds);
-        _notifTimer.Start();
+        if (!_notifOpen) _notifTimer.Start();   // one you're reading stays until you move away
         if (_key == "notif" && !first) { _key = ""; }   // a second one arriving re-runs the hand-off
         Apply();
         // it lands with momentum: taller first, a touch narrow, then settles
@@ -49,14 +51,75 @@ public partial class NotchWindow
 
     private void FillNotif(NotifItem n)
     {
-        bool text = _cfg.NotifShowText;
+        var t = n.Tint;
         NotifApp.Text = n.App;
-        NotifTitle.Text = text ? OneLine(n.Title) : n.App;
-        NotifBody.Text = text ? OneLine(n.Body) : "New notification";
-        NotifBody.Visibility = NotifBody.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        NotifApp.Foreground = new SolidColorBrush(FocusTimer.Light(t));   // the app's own colour names it
+        NotifHint.Foreground = new SolidColorBrush(FocusTimer.Light(t));
+        NotifWash.Background = new LinearGradientBrush(
+            [new GradientStop(Color.FromArgb(0x38, t.R, t.G, t.B), 0), new GradientStop(Color.FromArgb(0x10, t.R, t.G, t.B), 0.45), new GradientStop(Color.FromArgb(0, t.R, t.G, t.B), 1)],
+            new Point(0, 0), new Point(1, 0.6));
         NotifWhen.Text = "now";
         ApplyLogo(NotifIconBox, NotifLogo, NotifLetter, n, 18);
+        LayoutNotif();
     }
+
+    // ---------------------------------------------------------------- open on hover
+
+    /// <summary>Hovering a notification opens it in place to the whole message, instead of opening the hub over it.</summary>
+    private bool _notifOpen;
+    private double _notifOpenH = 86;
+    private const double NotifW = 372, NotifOpenW = 420;
+
+    private (double W, double H) NotifSize => _notifOpen ? (NotifOpenW, _notifOpenH) : (NotifW, 86);
+
+    private void LayoutNotif()
+    {
+        var n = _notif;
+        if (n == null) return;
+        bool open = _notifOpen, text = _cfg.NotifShowText;
+        var wrap = open ? TextWrapping.Wrap : TextWrapping.NoWrap;
+        NotifTitle.TextWrapping = wrap;
+        NotifTitle.MaxHeight = open ? 42 : double.PositiveInfinity;       // two lines
+        NotifTitle.Text = text ? (open ? n.Title.Trim() : OneLine(n.Title)) : n.App;
+        NotifBody.TextWrapping = wrap;
+        NotifBody.MaxHeight = open ? 17 * 6 : double.PositiveInfinity;   // up to six lines, then an ellipsis
+        NotifBody.Text = !text ? "New notification" : open ? n.Body.Trim() : OneLine(Flat(n.Body));
+        NotifBody.Visibility = NotifBody.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        NotifBody.Margin = new Thickness(0, open ? 3 : 0, 0, 0);
+        NotifHint.Text = $"Click to open {n.App}";
+        NotifHint.Visibility = open && n.AppId.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        var top = open ? VerticalAlignment.Top : VerticalAlignment.Center;
+        NotifBox.VerticalAlignment = NotifIconBox.VerticalAlignment = NotifText.VerticalAlignment = top;
+        NotifBox.Margin = open ? new Thickness(20, 18, 22, 18) : new Thickness(20, 0, 22, 0);
+        double w = open ? NotifOpenW : NotifW;
+        LNotif.Width = w;
+        if (open)
+        {
+            NotifBox.Measure(new Size(w, double.PositiveInfinity));
+            _notifOpenH = Math.Max(86, Math.Ceiling(NotifBox.DesiredSize.Height));
+        }
+        LNotif.Height = open ? _notifOpenH : 86;
+    }
+
+    private void SetNotifOpen(bool open)
+    {
+        if (_notif == null || _notifOpen == open) return;
+        _notifOpen = open;
+        LayoutNotif();
+        _notifTimer!.Stop();
+        if (!open)
+        {
+            // read it, moved away: it stays a moment longer, then goes
+            _notifTimer.Interval = TimeSpan.FromSeconds(Math.Min(3, _cfg.NotifSeconds));
+            _notifTimer.Start();
+        }
+        Apply();
+        if (open && SystemParameters.ClientAreaAnimation) Kick();
+    }
+
+    /// <summary>The text parts of a notification, on one line.</summary>
+    private static string Flat(string body) => string.Join(" · ", body.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
 
     /// <summary>The app's own logo on a soft tile of its colour, or its initial when Windows has no logo.</summary>
     private static void ApplyLogo(Border box, Image img, TextBlock letter, NotifItem n, double letterSize)
@@ -83,6 +146,7 @@ public partial class NotchWindow
         _notifTimer?.Stop();
         if (_notif == null) return;
         _notif = null;
+        _notifOpen = false;
         Apply();
     }
 
@@ -155,7 +219,7 @@ public partial class NotchWindow
 
         var sp = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         sp.Children.Add(new TextBlock { Text = text ? OneLine(n.Title) : n.App, FontSize = 13, TextTrimming = TextTrimming.CharacterEllipsis });
-        string second = text && n.Body.Length > 0 ? $"{n.App} · {OneLine(n.Body)}" : n.App;
+        string second = text && n.Body.Length > 0 ? $"{n.App} · {OneLine(Flat(n.Body))}" : n.App;
         sp.Children.Add(new TextBlock { Text = second, FontSize = 11, Foreground = dim, TextTrimming = TextTrimming.CharacterEllipsis });
         Grid.SetColumn(sp, 2);
         g.Children.Add(sp);

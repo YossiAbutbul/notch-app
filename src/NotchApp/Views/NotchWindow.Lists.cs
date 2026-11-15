@@ -31,8 +31,9 @@ public partial class NotchWindow
     private double ShelfGridHeight() => _shelf.Items.Count == 0 ? 96 : ShelfRows * Tile + (ShelfRows - 1) * TileGap;
 
     /// <summary>
-    /// Scroll edge effect: content fades out over the last 20 px on whichever side has more to scroll to,
-    /// instead of being cut off by the edge.
+    /// Scroll edge effect: content fades out on whichever side has more to scroll to, instead of being cut off by the
+    /// edge. The fade is a little longer than the half row that peeks in, and eased (not a straight ramp), so that row
+    /// reads as "more below" rather than as a row sliced in half.
     /// </summary>
     private static void ScrollEdges(ScrollViewer sv)
     {
@@ -41,9 +42,11 @@ public partial class NotchWindow
             double h = sv.ActualHeight;
             bool top = sv.VerticalOffset > 1, bottom = sv.VerticalOffset < sv.ScrollableHeight - 1;
             if (h <= 0 || (!top && !bottom)) { sv.OpacityMask = null; return; }
-            double f = Math.Min(0.4, 20 / h);
+            double f = Math.Min(0.4, 34 / h);
             var m = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(0, 1) };
             m.GradientStops.Add(new GradientStop(top ? Colors.Transparent : Colors.Black, 0));
+            if (top) m.GradientStops.Add(new GradientStop(Color.FromArgb(0x50, 0, 0, 0), f * 0.45));
+            if (bottom) m.GradientStops.Add(new GradientStop(Color.FromArgb(0x50, 0, 0, 0), 1 - f * 0.45));
             m.GradientStops.Add(new GradientStop(Colors.Black, f));
             m.GradientStops.Add(new GradientStop(Colors.Black, 1 - f));
             m.GradientStops.Add(new GradientStop(bottom ? Colors.Transparent : Colors.Black, 1));
@@ -57,7 +60,13 @@ public partial class NotchWindow
     private void WireLists()
     {
         foreach (var sv in new[] { ClipScroll, ShelfScroll, NotifScroll, AppsScroll, DevScroll }) ScrollEdges(sv);
-        _clip.Changed += () => { if (_hub && _tab == "clip") RenderClip(); };
+        _clip.Changed += () =>
+        {
+            // the photo being viewed was removed: back to the list
+            if (_viewing != null && !_clip.Items.Contains(_viewing)) CloseViewer(animate: false);
+            if (_hub && _tab == "clip") RenderClip();
+            if (_viewing != null) FillViewer(_viewing);   // its "2 of 5" may have changed
+        };
         _clip.Captured += OnCaptured;
         _shelf.Changed += () => { if (_hub && _tab == "shelf") RenderShelf(); };
 
@@ -101,6 +110,7 @@ public partial class NotchWindow
         ClipClear.Visibility = items.Any(i => !i.Pinned) ? Visibility.Visible : Visibility.Collapsed;
         ClipScroll.Height = ClipListHeight();
         ClipList.Children.Clear();
+        _clipThumbs.Clear();
         if (items.Count == 0)
         {
             ClipList.Children.Add(Empty("Anything you copy shows up here. Pin the things you reuse.", dropTarget: false));
@@ -127,7 +137,14 @@ public partial class NotchWindow
         // the glyph tile is one step lighter than the card it now sits on
         var box = new Border { Width = 32, Height = 32, CornerRadius = new CornerRadius(10), Background = new SolidColorBrush(Color.FromArgb(0x14, 255, 255, 255)) };
         if (c.Kind == ClipKind.Color && ClipboardHistory.ParseColor(c.Text) is { } col) box.Background = new SolidColorBrush(col);
-        else if (c.Kind == ClipKind.Image && c.Thumb != null) box.Background = new ImageBrush(c.Thumb) { Stretch = Stretch.UniformToFill };
+        else if (c.Kind == ClipKind.Image && c.Thumb != null)
+        {
+            box.Background = new ImageBrush(c.Thumb) { Stretch = Stretch.UniformToFill };
+            // the thumbnail opens the photo big, instead of copying it like the rest of the row
+            _clipThumbs[c] = box;
+            box.ToolTip = "View";
+            box.MouseLeftButtonUp += (_, e) => { e.Handled = true; OpenViewer(c); };
+        }
         else box.Child = new IconEl { Kind = c.Kind switch { ClipKind.Link => "link", ClipKind.Code => "code", ClipKind.Image => "image", _ => "text" }, Width = 15, Height = 15, Foreground = dim };
         g.Children.Add(box);
 
@@ -143,6 +160,8 @@ public partial class NotchWindow
         var acts = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
         if (c.Kind == ClipKind.Link)
             acts.Children.Add(Act("open", "Open link", dim, () => { try { Process.Start(new ProcessStartInfo(c.Text) { UseShellExecute = true }); } catch { } }));
+        if (c.Kind == ClipKind.Image && c.Image != null)
+            acts.Children.Add(Act("expand", "View", dim, () => OpenViewer(c)));
         var copyBtn = Act("copy", "Copy", dim, () => { });
         copyBtn.Click += (_, _) => CopyWithFeedback(c, copyBtn);
         acts.Children.Add(copyBtn);

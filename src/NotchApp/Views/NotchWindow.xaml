@@ -16,7 +16,7 @@
     <SolidColorBrush x:Key="Faint" Color="#24F4F5F8"/>
     <SolidColorBrush x:Key="Card" Color="#11FFFFFF"/>
 
-    <!-- every button dips the instant the mouse goes down, springs back on release, and the hover glow fades in -->
+    <!-- every button: the hover glow fades in; the press (a dip sized to the button) is in PressFeedback -->
     <Style x:Key="Press" TargetType="Button">
       <Setter Property="Background" Value="Transparent"/>
       <Setter Property="Foreground" Value="#F4F5F8"/>
@@ -40,16 +40,6 @@
                 </Storyboard></BeginStoryboard></Trigger.EnterActions>
                 <Trigger.ExitActions><BeginStoryboard><Storyboard>
                   <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.24"/>
-                </Storyboard></BeginStoryboard></Trigger.ExitActions>
-              </Trigger>
-              <Trigger Property="IsPressed" Value="True">
-                <Trigger.EnterActions><BeginStoryboard><Storyboard>
-                  <DoubleAnimation Storyboard.TargetName="S" Storyboard.TargetProperty="ScaleX" To="0.92" Duration="0:0:0.09"><DoubleAnimation.EasingFunction><QuadraticEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
-                  <DoubleAnimation Storyboard.TargetName="S" Storyboard.TargetProperty="ScaleY" To="0.92" Duration="0:0:0.09"><DoubleAnimation.EasingFunction><QuadraticEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
-                </Storyboard></BeginStoryboard></Trigger.EnterActions>
-                <Trigger.ExitActions><BeginStoryboard><Storyboard>
-                  <DoubleAnimation Storyboard.TargetName="S" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.36"><DoubleAnimation.EasingFunction><BackEase EasingMode="EaseOut" Amplitude="0.35"/></DoubleAnimation.EasingFunction></DoubleAnimation>
-                  <DoubleAnimation Storyboard.TargetName="S" Storyboard.TargetProperty="ScaleY" To="1" Duration="0:0:0.36"><DoubleAnimation.EasingFunction><BackEase EasingMode="EaseOut" Amplitude="0.35"/></DoubleAnimation.EasingFunction></DoubleAnimation>
                 </Storyboard></BeginStoryboard></Trigger.ExitActions>
               </Trigger>
               <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Root" Property="Opacity" Value="0.5"/></Trigger>
@@ -112,23 +102,26 @@
           </StackPanel>
         </Grid>
 
-        <!-- a notification from another app -->
+        <!-- a notification from another app: compact when it lands, opens in place to the whole message on hover -->
         <Grid x:Name="LNotif" Width="372" Height="86" Opacity="0" IsHitTestVisible="False" Background="Transparent">
-          <Grid Margin="20,0,22,0">
+          <!-- a wash of the app's colour from the icon side -->
+          <Border x:Name="NotifWash"/>
+          <Grid x:Name="NotifBox" Margin="20,0,22,0" VerticalAlignment="Center">
           <Grid.ColumnDefinitions><ColumnDefinition Width="46"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-          <Border x:Name="NotifIconBox" Width="46" Height="46" CornerRadius="12" Margin="0" HorizontalAlignment="Left">
+          <Border x:Name="NotifIconBox" Width="46" Height="46" CornerRadius="12" Margin="0" HorizontalAlignment="Left" VerticalAlignment="Center">
             <Grid>
               <Image x:Name="NotifLogo" Width="34" Height="34" RenderOptions.BitmapScalingMode="HighQuality"/>
               <TextBlock x:Name="NotifLetter" FontFamily="{StaticResource Display}" FontWeight="Bold" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Grid>
           </Border>
-          <StackPanel Grid.Column="2" VerticalAlignment="Center">
+          <StackPanel x:Name="NotifText" Grid.Column="2" VerticalAlignment="Center">
             <Grid>
-              <TextBlock x:Name="NotifApp" Foreground="{StaticResource Dim}" FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,0,40,0"/>
+              <TextBlock x:Name="NotifApp" Foreground="{StaticResource Dim}" FontSize="11" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,0,40,0"/>
               <TextBlock x:Name="NotifWhen" Foreground="{StaticResource Dim}" FontSize="11" HorizontalAlignment="Right" Text="now"/>
             </Grid>
             <TextBlock x:Name="NotifTitle" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="14.5" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
-            <TextBlock x:Name="NotifBody" Foreground="{StaticResource Dim}" FontSize="12.5" TextTrimming="CharacterEllipsis"/>
+            <TextBlock x:Name="NotifBody" Foreground="{StaticResource Dim}" FontSize="12.5" TextTrimming="CharacterEllipsis" LineHeight="17" LineStackingStrategy="BlockLineHeight"/>
+            <TextBlock x:Name="NotifHint" FontSize="11.5" FontWeight="SemiBold" Margin="0,10,0,0" Visibility="Collapsed"/>
           </StackPanel>
           </Grid>
         </Grid>
@@ -148,9 +141,14 @@
         <!-- expanded: the hub -->
         <Grid x:Name="LHub" Width="600" Opacity="0" IsHitTestVisible="False">
           <StackPanel Margin="12">
-            <!-- tabs: a row of icons; the selected one widens into a pill that shows its name -->
+            <!-- tabs: the open tab's name on the left; a row of icons that never move on the right, the pill sliding
+                 between them -->
             <Grid x:Name="TabsRow" Height="32">
-              <Grid x:Name="TrackInner" HorizontalAlignment="Center">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="8"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <TextBlock x:Name="TabTitle" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center" Margin="8,0,12,1" TextTrimming="CharacterEllipsis">
+                <TextBlock.RenderTransform><TranslateTransform x:Name="TabTitleX"/></TextBlock.RenderTransform>
+              </TextBlock>
+              <Grid x:Name="TrackInner" Grid.Column="1">
                 <Border x:Name="TabIndicator" HorizontalAlignment="Left" Height="32" Width="80" CornerRadius="16" Background="#2C2C2F">
                   <Border.RenderTransform><TranslateTransform x:Name="TabIndicatorX"/></Border.RenderTransform>
                   <Border CornerRadius="16" BorderThickness="0,1,0,0" BorderBrush="#14FFFFFF"/>
@@ -182,12 +180,12 @@
                 </Button>
                 </StackPanel>
               </Grid>
-              <Button x:Name="GearBtn" HorizontalAlignment="Right" Style="{StaticResource Press}" Width="32" Height="32" Foreground="#A8F4F5F8" ToolTip="Settings">
+              <Button x:Name="GearBtn" Grid.Column="3" Style="{StaticResource Press}" Width="32" Height="32" Foreground="#A8F4F5F8" ToolTip="Settings">
                 <c:Icon Kind="gear" Width="16" Height="16"/>
               </Button>
             </Grid>
 
-            <Canvas x:Name="Viewport" Margin="0,12,0,0" Height="200" ClipToBounds="True" Width="576">
+            <Canvas x:Name="Viewport" Margin="0,12,0,0" Height="270" ClipToBounds="True" Width="576">
               <StackPanel x:Name="Strip" Orientation="Horizontal">
                 <StackPanel.RenderTransform><TranslateTransform x:Name="StripX"/></StackPanel.RenderTransform>
 
@@ -337,7 +335,8 @@
                 </StackPanel>
 
                 <!-- Clipboard -->
-                <StackPanel x:Name="PaneClip" Width="576" VerticalAlignment="Top">
+                <Grid x:Name="PaneClip" Width="576" VerticalAlignment="Top">
+                <StackPanel x:Name="ClipListView" VerticalAlignment="Top">
                   <Grid Height="26" Margin="8,0,0,8">
                     <TextBlock x:Name="ClipCount" Foreground="{StaticResource Dim}" FontSize="12" VerticalAlignment="Center" Text="Recent"/>
                     <Button x:Name="ClipClear" Style="{StaticResource Press}" HorizontalAlignment="Right" Height="26" Padding="11,0" Background="{StaticResource Faint}" FontWeight="SemiBold" FontSize="11.5" Content="Clear unpinned"/>
@@ -348,6 +347,34 @@
                     </ScrollViewer>
                   </Border>
                 </StackPanel>
+
+                <!-- a copied photo, big: it grows out of its thumbnail in the list and goes back into it -->
+                <Grid x:Name="ClipViewer" VerticalAlignment="Top" Visibility="Collapsed">
+                  <Grid.RowDefinitions><RowDefinition Height="26"/><RowDefinition Height="8"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                  <Grid x:Name="ViewBar">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                      <Button x:Name="ViewBack" Style="{StaticResource Press}" Height="26" Padding="6,0,12,0" Background="{StaticResource Faint}" FontWeight="SemiBold" FontSize="11.5" ToolTip="Back to the list">
+                        <StackPanel Orientation="Horizontal"><c:Icon Kind="chev" Width="13" Height="13" StrokeWidth="2.2" Margin="0,0,3,0"/><TextBlock Text="Clipboard" VerticalAlignment="Center"/></StackPanel>
+                      </Button>
+                      <TextBlock x:Name="ViewInfo" Grid.Column="1" Foreground="{StaticResource Dim}" FontSize="12" VerticalAlignment="Center" Margin="10,0,10,0" TextTrimming="CharacterEllipsis"/>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal">
+                      <Button x:Name="ViewPrev" Style="{StaticResource Press}" Width="26" Height="26" Background="{StaticResource Faint}" ToolTip="Newer image">
+                        <c:Icon Kind="chev" Width="13" Height="13" StrokeWidth="2.2"/>
+                      </Button>
+                      <TextBlock x:Name="ViewCount" Foreground="{StaticResource Dim}" FontSize="11.5" VerticalAlignment="Center" Margin="7,0" MinWidth="34" TextAlignment="Center"/>
+                      <Button x:Name="ViewNext" Style="{StaticResource Press}" Width="26" Height="26" Background="{StaticResource Faint}" ToolTip="Older image" Margin="0,0,10,0">
+                        <c:Icon Kind="chev" Width="13" Height="13" StrokeWidth="2.2" RenderTransformOrigin="0.5,0.5"><c:Icon.RenderTransform><ScaleTransform ScaleX="-1"/></c:Icon.RenderTransform></c:Icon>
+                      </Button>
+                      <Button x:Name="ViewOpen" Style="{StaticResource Press}" Height="26" Padding="11,0" Background="{StaticResource Faint}" FontWeight="SemiBold" FontSize="11.5" Content="Open" ToolTip="Open in your photo app"/>
+                      <Button x:Name="ViewCopy" Style="{StaticResource Press}" Height="26" Padding="11,0" Margin="4,0" Background="{StaticResource Faint}" FontWeight="SemiBold" FontSize="11.5" Content="Copy"/>
+                      <Button x:Name="ViewSave" Style="{StaticResource Press}" Height="26" Padding="11,0" Background="#F4F5F8" Foreground="Black" FontWeight="SemiBold" FontSize="11.5" Content="Save" ToolTip="Save to Downloads"/>
+                    </StackPanel>
+                  </Grid>
+                  <Border x:Name="ViewCard" Grid.Row="2" Background="{StaticResource Card}" CornerRadius="20" Padding="8">
+                    <Border x:Name="ViewImg" CornerRadius="12" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                  </Border>
+                </Grid>
+                </Grid>
 
                 <!-- Shelf -->
                 <StackPanel x:Name="PaneShelf" Width="576" VerticalAlignment="Top">

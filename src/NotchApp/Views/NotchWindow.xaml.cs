@@ -126,7 +126,7 @@ public partial class NotchWindow : Window
         _toastTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(2300) };
         _toastTimer.Tick += (_, _) => { _toastTimer.Stop(); _toast = null; Apply(); };
         _hoverIntent = new DispatcherTimer();
-        _hoverIntent.Tick += (_, _) => { _hoverIntent.Stop(); if (_mouseOver && !_hub && _drag == null) OpenHub("hover"); };
+        _hoverIntent.Tick += (_, _) => { _hoverIntent.Stop(); if (_mouseOver && !_hub && _drag == null && _notif == null) OpenHub("hover"); };
         _leaveGrace = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(260) };
         _leaveGrace.Tick += (_, _) => { _leaveGrace.Stop(); if (!_mouseOver && _hub && _openMode == "hover") CloseHub(); };
         _poll = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
@@ -139,8 +139,10 @@ public partial class NotchWindow : Window
         _dropLeave.Tick += (_, _) => { _dropLeave.Stop(); _dropHover = false; Apply(); };
         _announceTimer.Tick += (_, _) => EndAnnounce();
 
+        PressFeedback();
         WireInput();
         WireLists();
+        WireClipViewer();
         WireDevicesApps();
         WireNotifs();
         _media.Changed += OnMediaChanged;
@@ -263,7 +265,7 @@ public partial class NotchWindow : Window
     private (double W, double H) SizeOf(string k) => k switch
     {
         "drop" => (420, 118),
-        "notif" => (372, 86),
+        "notif" => NotifSize,
         "hub" => (_cfg.HubWidth, HubHeight(_tab)),
         "toast" => (_toast?.Width ?? 260, 40),
         // Line style: closed, everything is a thin bar. The shape is a strip a little bigger than the bar, so it's easy
@@ -281,7 +283,7 @@ public partial class NotchWindow : Window
     private double PaneHeight(string t) => t switch
     {
         "system" => 144,
-        "clip" => 34 + ListCardPad + ClipListHeight(),
+        "clip" => _viewing != null ? ViewerHeight : 34 + ListCardPad + ClipListHeight(),
         "shelf" => 34 + ShelfGridHeight(),
         "dev" => 152,
         "notif" => 34 + ListCardPad + NotifListHeight(),
@@ -304,7 +306,7 @@ public partial class NotchWindow : Window
             // a peek at what it holds, and a hint that it opens
             if (LineStyle && k is "idle" or "music" or "timer")
                 (w, h) = k == "idle" ? (_cfg.IdleWidth, 34) : k == "music" ? (236, 38) : (206, 38);
-            else { w += 14; h += 3; }
+            else if (k != "notif") { w += 14; h += 3; }   // a notification opens to its whole message instead
         }
         bool changed = Math.Abs(w - W.Target) > 0.5 || Math.Abs(h - H.Target) > 0.5;
         bool growing = w > W.Target + 0.5 || h > H.Target + 0.5;
@@ -415,7 +417,9 @@ public partial class NotchWindow : Window
             if (act == "timer" && v.Contains("timer")) return "timer";
             if (act == "music" && v.Contains("now")) return "now";
         }
-        return v[0];   // the default: the tab on the left
+        // the default: back where you were last time; the tab on the left before you've used any
+        if (_cfg.DefaultTab == "auto" && _lastTab != null && v.Contains(_lastTab)) return _lastTab;
+        return v[0];
     }
 
     private Button TabButton(string id) => id switch { "system" => TabSystem, "timer" => TabTimer, "notif" => TabNotif, "clip" => TabClip, "shelf" => TabShelf, "dev" => TabDev, "apps" => TabApps, _ => TabNow };
@@ -444,15 +448,20 @@ public partial class NotchWindow : Window
         SetTab(VisibleTabs().Contains(_tab) ? _tab : VisibleTabs()[0], instant: true);
     }
 
+    /// <summary>The tab the hub was last on, so it reopens there.</summary>
+    private string? _lastTab;
+
     private void SetTab(string t, bool instant = false)
     {
         var vis = VisibleTabs();
         if (!vis.Contains(t)) t = vis[0];
+        if (_hub) _lastTab = t;   // only tabs you actually opened, not layout refreshes
         if (t != "timer") CloseTimerEditor(animate: false);
+        if (t != "clip") CloseViewer(animate: false);
         int from = vis.IndexOf(_tab), to = vis.IndexOf(t);
         _tab = t;
         double target = -to * PaneW;
-        foreach (var tb in AllTabButtons) ShowTabLabel(tb, (string)tb.Tag == t, instant || !_hub);
+        ShowTabTitle(t, from < 0 ? 0 : Math.Sign(to - from), instant || !_hub);
         var b = TabButton(t);
         LHub.UpdateLayout();
         TabX.Target = b.TranslatePoint(new Point(0, 0), TrackInner).X;
@@ -496,23 +505,28 @@ public partial class NotchWindow : Window
         Strip.BeginAnimation(OpacityProperty, outA);
     }
 
-    /// <summary>The selected tab's name slides out of its icon; the others fold back to just the icon.</summary>
-    private void ShowTabLabel(Button tb, bool on, bool instant)
+    private static string TabName(Button tb) =>
+        tb.Content is StackPanel { Children.Count: > 1 } sp && sp.Children[1] is Border { Child: TextBlock label } ? label.Text : "";
+
+    /// <summary>
+    /// Tab icons keep a fixed slot, so the one you're about to click never moves. The open tab's name is the title on
+    /// the left: it slides in from the side you moved toward.
+    /// </summary>
+    private void ShowTabTitle(string t, int dir, bool instant)
     {
-        if (tb.Content is not StackPanel sp || sp.Children.Count < 2 || sp.Children[1] is not Border clip || clip.Child is not TextBlock label) return;
-        label.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        double w = on ? Math.Ceiling(label.DesiredSize.Width) : 0;
-        tb.ToolTip = on ? null : label.Text;
-        if (instant || !SystemParameters.ClientAreaAnimation)
+        var name = TabName(TabButton(t));
+        foreach (var tb in AllTabButtons) tb.ToolTip = TabName(tb);
+        if (TabTitle.Text == name && !instant) return;
+        TabTitle.Text = name;
+        if (instant || dir == 0 || !SystemParameters.ClientAreaAnimation)
         {
-            clip.BeginAnimation(WidthProperty, null); clip.Width = w;
-            label.BeginAnimation(OpacityProperty, null); label.Opacity = on ? 1 : 0;
+            TabTitle.BeginAnimation(OpacityProperty, null); TabTitle.Opacity = 1;
+            TabTitleX.BeginAnimation(TranslateTransform.XProperty, null); TabTitleX.X = 0;
             return;
         }
         var ease = new QuarticEase { EasingMode = EasingMode.EaseOut };
-        clip.BeginAnimation(WidthProperty, new DoubleAnimation(w, TimeSpan.FromMilliseconds(on ? 360 : 260)) { EasingFunction = ease });
-        label.BeginAnimation(OpacityProperty, new DoubleAnimation(on ? 1 : 0, TimeSpan.FromMilliseconds(on ? 260 : 120))
-        { BeginTime = TimeSpan.FromMilliseconds(on ? 80 : 0), EasingFunction = ease });
+        TabTitle.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220)) { EasingFunction = ease });
+        TabTitleX.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(dir * 10, 0, TimeSpan.FromMilliseconds(320)) { EasingFunction = ease });
     }
 
     private void ShowOnlyPane()
@@ -539,7 +553,7 @@ public partial class NotchWindow : Window
         {
             _hub = true;
             _openMode = mode;
-            _notif = null; _notifTimer?.Stop();
+            _notif = null; _notifOpen = false; _notifTimer?.Stop();
             SetTab(tab ?? DefaultTab(), instant: true);
             UpdateNowUI();
         }
@@ -556,6 +570,7 @@ public partial class NotchWindow : Window
         if (!_hub) return;
         _hub = false; _openMode = null;
         CloseTimerEditor(animate: false);
+        CloseViewer(animate: false);
         _leaveGrace.Stop();
         Apply();
     }
@@ -604,6 +619,7 @@ public partial class NotchWindow : Window
         {
             _mouseOver = true;
             _leaveGrace.Stop();
+            if (!_hub && _drag == null && _notif != null) { _hoverNudge = true; SetNotifOpen(true); return; }
             if (!_hub && _drag == null)
             {
                 _hoverNudge = true;   // grows slightly toward you: a hint of what a click or pull will do
@@ -616,6 +632,7 @@ public partial class NotchWindow : Window
             _mouseOver = false;
             _hoverIntent.Stop();
             if (_hoverNudge) { _hoverNudge = false; Apply(); }
+            SetNotifOpen(false);
             if (_hub && _openMode == "hover" && _drag == null) _leaveGrace.Start();
         };
 
@@ -739,7 +756,7 @@ public partial class NotchWindow : Window
             double range = d.Expanded.H - d.Compact.H, cur = H.Value - d.Compact.H;
             double projected = cur + Gesture.Project(vy);        // where the flick is heading, not where it let go
             bool open = cancelled ? d.FromHub : projected > range / 2;
-            if (open) { _hub = true; _openMode = "sticky"; _notif = null; _notifTimer?.Stop(); UpdateNowUI(); }
+            if (open) { _hub = true; _openMode = "sticky"; _notif = null; _notifOpen = false; _notifTimer?.Stop(); UpdateNowUI(); }
             else { _hub = false; _openMode = null; }
             _key = "";                                           // re-run the content hand-off from the current opacities
             Apply();
@@ -947,6 +964,7 @@ public partial class NotchWindow : Window
         double dt = _lastRender == TimeSpan.Zero ? 1 / 60.0 : Math.Min(0.05, (t - _lastRender).TotalSeconds);
         _lastRender = t;
         _clock += dt;
+        _frameDt = dt;
 
         foreach (var s in new[] { W, H, R, LeanX, Press, Off, TabX, TabW, Pane, VolFill, Swipe, LineDraw }) s.Step(dt);
         Render();
@@ -1032,8 +1050,10 @@ public partial class NotchWindow : Window
         ToastBarFill.Width = 86 * Math.Clamp(VolFill.Value, 0, 1);
 
         // glow: eases toward the current colour; music pulses with a beat, the timer's last seconds breathe
-        _glowCur = Color.FromRgb(Lerp(_glowCur.R, _glowTarget.R, 0.08), Lerp(_glowCur.G, _glowTarget.G, 0.08), Lerp(_glowCur.B, _glowTarget.B, 0.08));
-        _glowCurA += (_glowA - _glowCurA) * 0.08;
+        // by time, not by frame, so it eases at the same pace on a 60 Hz and a 144 Hz screen (about 0.2 s)
+        double gk = 1 - Math.Exp(-_frameDt / 0.2);
+        _glowCur = Color.FromRgb(Lerp(_glowCur.R, _glowTarget.R, gk), Lerp(_glowCur.G, _glowTarget.G, gk), Lerp(_glowCur.B, _glowTarget.B, gk));
+        _glowCurA += (_glowA - _glowCurA) * gk;
         double pulse = 1;
         if (_cfg.BeatPulse && _media.IsPlaying && (_key == "music" || (_key == "hub" && _tab == "now" && Activity() == "music")))
             pulse = 0.7 + 0.6 * Math.Pow(Math.Max(0, Math.Sin(_clock * Math.PI * 4)), 6);
@@ -1062,7 +1082,45 @@ public partial class NotchWindow : Window
         }
     }
 
+    private double _frameDt = 1 / 60.0;
     private static byte Lerp(byte a, byte b, double t) => (byte)Math.Round(a + (b - a) * t);
+
+    // ================================================================ press feedback
+
+    private readonly HashSet<Button> _pressWired = [];
+
+    /// <summary>
+    /// Every button dips the instant the mouse goes down and comes back when it's let go, or when the cursor drags off
+    /// it (which cancels the click). Wide buttons dip less than small ones, so the movement looks the same size, and
+    /// they come back without an overshoot: a click has no momentum to carry.
+    /// </summary>
+    private void PressFeedback()
+    {
+        AddHandler(PreviewMouseLeftButtonDownEvent, new MouseButtonEventHandler((_, e) =>
+        {
+            for (var d = e.OriginalSource as DependencyObject; d != null && d != this; d = d is Visual ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d))
+            {
+                if (d is not Button b) continue;
+                if (_pressWired.Add(b))
+                    System.ComponentModel.DependencyPropertyDescriptor.FromProperty(System.Windows.Controls.Primitives.ButtonBase.IsPressedProperty, typeof(Button))
+                        .AddValueChanged(b, (_, _) => Dip(b));
+                break;
+            }
+        }), true);
+    }
+
+    private static void Dip(Button b)
+    {
+        if (b.Template?.FindName("S", b) is not ScaleTransform s || s.IsFrozen) return;
+        if (!SystemParameters.ClientAreaAnimation) { s.BeginAnimation(ScaleTransform.ScaleXProperty, null); s.BeginAnimation(ScaleTransform.ScaleYProperty, null); return; }
+        double to = !b.IsPressed ? 1 : b.ActualWidth > 64 ? 0.965 : 0.93;
+        var a = b.IsPressed
+            ? new DoubleAnimation(to, TimeSpan.FromMilliseconds(90)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut } }
+            : new DoubleAnimation(to, TimeSpan.FromMilliseconds(300)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+        s.BeginAnimation(ScaleTransform.ScaleXProperty, a);
+        s.BeginAnimation(ScaleTransform.ScaleYProperty, a);
+    }
+
 
     private static Geometry Rounded(double w, double h, double rt, double rb)
     {
@@ -1293,16 +1351,62 @@ public partial class NotchWindow : Window
         {
             if (a == "--timer") _timer.Start();
             if (a == "--demo") RunDemo();
+            if (a == "--notif")
+            {
+                // an example notification a second after start (it doesn't go through Windows)
+                var t = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+                t.Tick += (_, _) =>
+                {
+                    t.Stop();
+                    var c = Color.FromRgb(0x5B, 0x5F, 0xE8);
+                    OnNotification(new NotifItem(2, "Teams", "MSTeams_8wekyb3d8bbwe!MSTeams", "Dana Levi",
+                        "Can you look over the design review before the 3pm sync? I left comments on the notch line and the timer page.\nAlso: the build is green.",
+                        DateTimeOffset.Now, null, c), example: true);
+                };
+                t.Start();
+            }
             if (a == "--edit-timer") Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, OpenTimerEditor);
             if (a == "--sample")
             {
                 _clip.AddSamples();
+                _clip.AddSampleImage(SamplePhoto(1600, 900, Color.FromRgb(0xFF, 0x8A, 0x4C), Color.FromRgb(0x5B, 0x3F, 0xD9)), "Snipping Tool", 4);
+                _clip.AddSampleImage(SamplePhoto(800, 1100, Color.FromRgb(0x2E, 0xC4, 0xB6), Color.FromRgb(0x0A, 0x3D, 0x62)), "Photos", 20);
                 var root = AppContext.BaseDirectory;
                 var src = System.IO.Path.GetFullPath(System.IO.Path.Combine(root, "..", "..", "..", ".."));
                 _shelf.Add(System.IO.Directory.GetFiles(src).Take(3).Append(System.IO.Path.Combine(src, "NotchApp")).Where(p => System.IO.File.Exists(p) || System.IO.Directory.Exists(p)));
             }
+            // --view: the Clipboard tab with its newest image open big (use with --sample); --view=tour then steps to
+            // the next image and goes back to the list, for checking the motion
+            if (a.StartsWith("--view")) Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () =>
+            {
+                OpenHub("sticky", "clip");
+                var steps = new List<(int Ms, Action Do)> { (900, () => { if (ClipImages().FirstOrDefault() is { } c) OpenViewer(c); }) };
+                if (a == "--view=tour") { steps.Add((2600, () => StepViewer(1))); steps.Add((4600, () => CloseViewer(animate: true))); }
+                foreach (var (ms, run) in steps)
+                {
+                    var t = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(ms) };
+                    t.Tick += (_, _) => { t.Stop(); run(); };
+                    t.Start();
+                }
+            });
             if (a.StartsWith("--hub")) Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () => OpenHub("sticky", a.Contains('=') ? a[(a.IndexOf('=') + 1)..] : null));
         }
+    }
+
+    /// <summary>A stand-in photo for --sample: a sky-like gradient with a sun and two hills.</summary>
+    private static System.Windows.Media.Imaging.BitmapSource SamplePhoto(int w, int h, Color top, Color bottom)
+    {
+        var dv = new DrawingVisual();
+        using (var dc = dv.RenderOpen())
+        {
+            dc.DrawRectangle(new LinearGradientBrush(top, bottom, 90), null, new Rect(0, 0, w, h));
+            dc.DrawEllipse(new SolidColorBrush(Color.FromArgb(0xE0, 255, 240, 200)), null, new Point(w * 0.68, h * 0.38), h * 0.09, h * 0.09);
+            dc.DrawEllipse(new SolidColorBrush(Color.FromArgb(0xC0, 0x10, 0x12, 0x20)), null, new Point(w * 0.25, h * 1.05), w * 0.55, h * 0.35);
+            dc.DrawEllipse(new SolidColorBrush(Color.FromArgb(0xE6, 0x08, 0x09, 0x10)), null, new Point(w * 0.85, h * 1.1), w * 0.5, h * 0.33);
+        }
+        var bmp = new System.Windows.Media.Imaging.RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
+        bmp.Render(dv);
+        return bmp;
     }
 
     /// <summary>--demo: plays the main moments on a fixed schedule, for reviewing motion frame by frame.</summary>

@@ -99,7 +99,7 @@ public sealed class NotificationsService
             string appId = n.AppInfo?.AppUserModelId ?? "";
             if (string.Equals(app, "Notch", StringComparison.OrdinalIgnoreCase)) return null;
             string title = texts.Count > 0 ? texts[0] : app;
-            string body = string.Join(" · ", texts.Skip(1));
+            string body = string.Join("\n", texts.Skip(1));   // one line per text part; the compact view joins them with " · "
             var (logo, tint) = await LogoAsync(n.AppInfo, app);
             return new NotifItem(n.Id, app, appId, title, body, n.CreationTime, logo, tint);
         }
@@ -130,12 +130,13 @@ public sealed class NotificationsService
             }
         }
         catch { }
-        var tint = img is BitmapSource b ? Vivid(b) : AppLauncher.FromHsl(AppLauncher.Hue(app), 0.6, 0.55);
+        // the app's colour: from its logo when the logo has one, otherwise a steady colour of its own from its name
+        var tint = (img is BitmapSource b ? Vivid(b) : null) ?? AppLauncher.FromHsl(AppLauncher.Hue(app), 0.6, 0.55);
         return _logos[app] = (img, tint);
     }
 
-    /// <summary>The logo's most saturated colour, for the glow.</summary>
-    private static Color Vivid(BitmapSource src)
+    /// <summary>The logo's most saturated colour, or null when the logo is grey, white or black.</summary>
+    private static Color? Vivid(BitmapSource src)
     {
         try
         {
@@ -154,10 +155,15 @@ public sealed class NotificationsService
                 double k = a * (0.05 + sat * sat) * (max / 255.0);
                 r += R * k; g += G * k; bl += B * k; wt += k;
             }
-            if (wt < 0.01) return Color.FromRgb(170, 185, 255);
-            return Color.FromRgb((byte)(r / wt), (byte)(g / wt), (byte)(bl / wt));
+            if (wt < 0.01) return null;
+            double R2 = r / wt, G2 = g / wt, B2 = bl / wt;
+            double mx = Math.Max(R2, Math.Max(G2, B2)), mn = Math.Min(R2, Math.Min(G2, B2));
+            if (mx < 40 || (mx - mn) / mx < 0.22) return null;   // no real colour in it
+            // lift dark logo colours so the glow and the app name still read on black
+            double lift = mx < 150 ? 150 / mx : 1;
+            return Color.FromRgb((byte)Math.Min(255, R2 * lift), (byte)Math.Min(255, G2 * lift), (byte)Math.Min(255, B2 * lift));
         }
-        catch { return Color.FromRgb(170, 185, 255); }
+        catch { return null; }
     }
 
     /// <summary>Bring the app that sent it to the front (works for apps registered with Windows).</summary>
