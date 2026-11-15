@@ -5,7 +5,19 @@ A fluid, Apple-style notch for Windows: a small black pill at the top of the scr
 - `notch-playground.html`: the motion lab used to design the feel, states and settings (open it in a browser).
 - `src/NotchApp`: the Windows app (WPF on .NET 11).
 
-## Run
+## Install
+
+Build the installer exe, then run it:
+
+```
+powershell -NoProfile -File tools\publish.ps1
+```
+
+This makes `dist\Notch.exe`: one self-contained file (about 75 MB, no .NET needed). Double-click it and choose **Install**, or **Run without installing**. Installing puts Notch in `%LocalAppData%\Programs\Notch` for your account (no admin), adds Start menu and desktop shortcuts, can start it when you sign in, and lists it in Settings → Apps for uninstalling (also Settings → About → Uninstall in Notch). Running a newer `Notch.exe` updates the installed copy, closing the running one first. The first launch takes a few seconds while it unpacks.
+
+The icon is drawn by `tools\make-icon.ps1` (writes `src\NotchApp\Assets\Notch.ico`).
+
+## Run from source
 
 ```
 cd src/NotchApp

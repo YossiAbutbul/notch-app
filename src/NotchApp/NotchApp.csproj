@@ -14,11 +14,23 @@
     <RootNamespace>NotchApp</RootNamespace>
     <AssemblyName>Notch</AssemblyName>
     <Product>Notch</Product>
-    <Version>0.1.0</Version>
+    <Version>1.0.0</Version>
+    <ApplicationIcon>Assets/Notch.ico</ApplicationIcon>
+    <Company>Notch</Company>
+    <Description>A fluid, Apple-style notch for Windows</Description>
     <!-- WPF0001: Window.ThemeMode (Windows 11 Fluent theme for the Settings window) -->
     <!-- WFO0003: a WinForms-only DPI rule; this is a WPF app and the manifest is the right place -->
     <NoWarn>$(NoWarn);WPF0001;WFO0003</NoWarn>
   </PropertyGroup>
+
+  <!-- the installer lives inside Notch.exe: it only offers itself in builds published with -p:Packaged=true -->
+  <PropertyGroup Condition="'$(Packaged)' == 'true'">
+    <DefineConstants>$(DefineConstants);PACKAGED</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets/Notch.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <!-- keep WinForms types out of the global namespace so WPF names (Application, Point, Color…) stay unambiguous -->

@@ -15,11 +15,36 @@ public partial class App : Application
     private SettingsWindow? _settings;
     private AppSettings _cfg = null!;
 
-    protected override async void OnStartup(StartupEventArgs e)
+    protected override void OnStartup(StartupEventArgs e)
+    {
+        base.OnStartup(e);
+#if PACKAGED
+        // the published Notch.exe is its own installer and uninstaller
+        if (e.Args.Contains("--uninstall"))
+        {
+            var u = new SetupWindow(SetupMode.Uninstall);
+            u.Closed += (_, _) => Shutdown();
+            u.Show();
+            return;
+        }
+        if (!Installer.IsRunningInstalled && !e.Args.Contains("--portable"))
+        {
+            var w = new SetupWindow(Installer.IsInstalled ? SetupMode.Update : SetupMode.Install);
+            bool portable = false;
+            w.RunPortable += () => portable = true;
+            w.Closed += (_, _) => { if (portable) StartApp(e.Args); else Shutdown(); };
+            w.Show();
+            return;
+        }
+#endif
+        StartApp(e.Args);
+    }
+
+    private async void StartApp(string[] args)
     {
         _single = new Mutex(true, "Notch.SingleInstance.v1", out bool first);
         if (!first) { Shutdown(); return; }   // already running: the tray icon is the way in
-        base.OnStartup(e);
+        ListenForQuit();
 
         _cfg = AppSettings.Load();
         var media = new MediaService();
@@ -37,12 +62,24 @@ public partial class App : Application
         _notch.TimerEdited += () => _settings?.Refresh("timer");
         notifs.Changed += () => _settings?.Refresh("notif");
         _notch.Show();
-        _notch.ApplyLaunchArgs(e.Args);
+        _notch.ApplyLaunchArgs(args);
 
         CreateTray();
         await media.InitAsync();
         await devices.InitAsync();
         await notifs.InitAsync();
+    }
+
+    /// <summary>An installer or uninstaller asks the running copy to step aside through a named event.</summary>
+    private void ListenForQuit()
+    {
+        try
+        {
+            var ev = new EventWaitHandle(false, EventResetMode.AutoReset, Installer.QuitEventName);
+            var t = new Thread(() => { ev.WaitOne(); Dispatcher.Invoke(Quit); }) { IsBackground = true, Name = "Notch quit listener" };
+            t.Start();
+        }
+        catch { }
     }
 
     private void OpenSettings(string? section)
@@ -92,27 +129,12 @@ public partial class App : Application
         menu.Items.Add("Quit Notch", null, (_, _) => Quit());
     }
 
-    /// <summary>A small black pill on a light outline, drawn at runtime so the app ships without image files.</summary>
+    /// <summary>The app icon, at the tray's size for this display.</summary>
     private static Drawing.Icon MakeIcon()
     {
-        using var bmp = new Drawing.Bitmap(32, 32);
-        using (var g = Drawing.Graphics.FromImage(bmp))
-        {
-            g.SmoothingMode = Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            g.Clear(Drawing.Color.Transparent);
-            using var path = new Drawing.Drawing2D.GraphicsPath();
-            var r = new Drawing.RectangleF(3, 10, 26, 12);
-            path.AddArc(r.X, r.Y, 12, 12, 90, 180);
-            path.AddArc(r.Right - 12, r.Y, 12, 12, 270, 180);
-            path.CloseFigure();
-            using var fill = new Drawing.SolidBrush(Drawing.Color.Black);
-            using var pen = new Drawing.Pen(Drawing.Color.FromArgb(230, 255, 255, 255), 2f);
-            g.FillPath(fill, path);
-            g.DrawPath(pen, path);
-            using var dot = new Drawing.SolidBrush(Drawing.Color.FromArgb(255, 255, 181, 71));
-            g.FillEllipse(dot, 21, 14, 4, 4);
-        }
-        return Drawing.Icon.FromHandle(bmp.GetHicon());
+        var info = GetResourceStream(new Uri("pack://application:,,,/Assets/Notch.ico"));
+        int size = Forms.SystemInformation.SmallIconSize.Width;
+        return new Drawing.Icon(info.Stream, size, size);
     }
 
     private void Quit()

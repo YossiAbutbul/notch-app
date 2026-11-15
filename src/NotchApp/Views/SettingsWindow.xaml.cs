@@ -352,10 +352,18 @@ public partial class SettingsWindow : Window
             foreach (var p in typeof(AppSettings).GetProperties().Where(p => p.CanWrite)) p.SetValue(_cfg, p.GetValue(d));
             Changed(true);
         };
+        var uninstall = new Button { Content = "Uninstall…" };
+        uninstall.Click += (_, _) =>
+        {
+            try { Process.Start(new ProcessStartInfo(Installer.Exe, "--uninstall") { UseShellExecute = true }); } catch { }
+        };
         Group("Notch",
-            Row("Version", null, new TextBlock { Text = typeof(App).Assembly.GetName().Version?.ToString(3) ?? "0.1.0", Opacity = 0.7 }),
+            Row("Version", Installer.IsRunningInstalled ? $"Installed in {Installer.Dir}" : "Running without installing",
+                new TextBlock { Text = Installer.Current.ToString(3), Opacity = 0.7 }),
             Row("Settings file", folder, open),
             Row("Reset all settings", "Back to the defaults, timer included", reset));
+        if (Installer.IsRunningInstalled)
+            Group("Remove", Row("Uninstall Notch", "Removes the app, its shortcuts and its start-up entry", uninstall));
     }
 
     // ---------------------------------------------------------------- building blocks

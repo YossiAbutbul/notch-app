@@ -137,15 +137,6 @@ public sealed class AppSettings
         ApplyStartWithWindows();
     }
 
-    private void ApplyStartWithWindows()
-    {
-        try
-        {
-            using var run = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", writable: true);
-            if (run == null) return;
-            if (StartWithWindows && Environment.ProcessPath is { } exe) run.SetValue("Notch", $"\"{exe}\"");
-            else run.DeleteValue("Notch", throwOnMissingValue: false);
-        }
-        catch { }
-    }
+    /// <summary>Points at the installed copy when there is one, so a portable run never hijacks start-up.</summary>
+    private void ApplyStartWithWindows() => NotchApp.Services.Installer.SetStartWithWindows(StartWithWindows);
 }
