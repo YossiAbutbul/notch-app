@@ -10,7 +10,7 @@ namespace NotchApp.Controls;
 public sealed class ProgressRing : FrameworkElement
 {
     public double Fraction { get; set; } = 1;   // time remaining / total
-    public Color Color { get; set; } = Color.FromRgb(0xFF, 0x9F, 0x0A);
+    public Color Color { get; set; } = Color.FromRgb(0x0A, 0x84, 0xFF);
     public bool Paused { get; set; }
     public double Urgency { get; set; }         // 0..1
     public double Thickness { get; set; } = 4;

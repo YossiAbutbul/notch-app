@@ -53,6 +53,8 @@ public sealed class Icon : FrameworkElement
         ["phone"] = ("M8 2h8a2 2 0 0 1 2 2v16a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2v-16a2 2 0 0 1 2 -2z M11 18h2", false),
         ["globe"] = ("M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0 M3 12h18 M12 3a14 14 0 0 1 0 18 M12 3a14 14 0 0 0 0 18", false),
         ["terminal"] = ("M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2z M7 9l3 3-3 3 M12 15h5", false),
+        // drag handle: two columns of three dots
+        ["grip"] = ("M8 6a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0 M13.6 6a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0 M8 12a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0 M13.6 12a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0 M8 18a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0 M13.6 18a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0", true),
         ["battery"] = ("M3 8h15a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-15a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1z M22 11v2", false),
     };
     private static readonly Dictionary<string, Geometry> Cache = new();

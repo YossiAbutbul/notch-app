@@ -54,20 +54,26 @@ public partial class NotchWindow
     private Button DevTile(string icon, string label, string sub, bool on, Color accent, Func<Task> act)
     {
         var sp = new StackPanel { HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Stretch };
+        // "on" is a tint of the accent with the icon in the accent, not a solid block: these are set-and-forget
+        // switches, so they shouldn't be the loudest thing in the hub
+        var iconColor = on ? Mix(accent, Colors.White, 0.25) : Colors.White;
         // 72 px tile − 18 px padding = 54: icon 16 + 6 + label 17 + sub 15
-        sp.Children.Add(new IconEl { Kind = icon, Width = 16, Height = 16, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 6) });
+        sp.Children.Add(new IconEl { Kind = icon, Width = 16, Height = 16, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 6), Foreground = new SolidColorBrush(iconColor) });
         sp.Children.Add(new TextBlock { Text = label, FontSize = 12.5, FontWeight = FontWeights.SemiBold, LineHeight = 17, LineStackingStrategy = LineStackingStrategy.BlockLineHeight });
         sp.Children.Add(new TextBlock { Text = sub, FontSize = 11, LineHeight = 15, LineStackingStrategy = LineStackingStrategy.BlockLineHeight, Foreground = on ? new SolidColorBrush(Color.FromArgb(205, 255, 255, 255)) : (Brush)FindResource("Dim"), TextTrimming = TextTrimming.CharacterEllipsis });
         var b = new Button
         {
             Style = (Style)FindResource("Press"), Margin = new Thickness(0, 0, 8, 8),
-            Background = on ? new SolidColorBrush(accent) : (Brush)FindResource("Card"),
+            Background = on ? new SolidColorBrush(Color.FromArgb(0x3D, accent.R, accent.G, accent.B)) : (Brush)FindResource("Card"),
             Content = new Grid { Width = 96, Children = { sp } },
         };
         b.Template = TileTemplate();
         b.Click += async (_, _) => await act();
         return b;
     }
+
+    private static Color Mix(Color a, Color b, double t) =>
+        Color.FromRgb((byte)(a.R + (b.R - a.R) * t), (byte)(a.G + (b.G - a.G) * t), (byte)(a.B + (b.B - a.B) * t));
 
     private static ControlTemplate? _tile, _tileCentered;
 

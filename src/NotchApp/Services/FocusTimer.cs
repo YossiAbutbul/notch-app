@@ -32,12 +32,18 @@ public sealed class FocusTimer
     public DateTime EndsAt => DateTime.Now.AddSeconds(Left);
 
     public static string Label(Phase p) => p switch { Phase.Focus => "Focus", Phase.Break => "Break", _ => "Long break" };
+    /// <summary>Focus is the same blue as the Devices tiles, break is green, the long break indigo.</summary>
     public static Color ColorOf(Phase p) => p switch
     {
-        Phase.Focus => Color.FromRgb(0xFF, 0x9F, 0x0A),
+        Phase.Focus => Color.FromRgb(0x0A, 0x84, 0xFF),
         Phase.Break => Color.FromRgb(0x30, 0xD1, 0x58),
-        _ => Color.FromRgb(0x0A, 0x84, 0xFF),
+        _ => Color.FromRgb(0x5E, 0x5C, 0xE6),
     };
+
+    /// <summary>A button's fill: the colour at 24% over black, like an "on" Devices tile.</summary>
+    public static Color Tint(Color c) => Color.FromArgb(0x3D, c.R, c.G, c.B);
+    /// <summary>The colour lifted a quarter of the way to white, for icons and labels on a tint.</summary>
+    public static Color Light(Color c) => Color.FromRgb((byte)(c.R + (255 - c.R) * 0.25), (byte)(c.G + (255 - c.G) * 0.25), (byte)(c.B + (255 - c.B) * 0.25));
 
     public void Tick(double seconds)
     {

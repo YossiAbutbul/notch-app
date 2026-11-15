@@ -15,6 +15,10 @@ namespace NotchApp.Views;
 public partial class NotchWindow
 {
     private const double Row = 44, RowGap = 4, Tile = 56, TileGap = 8;
+    /// <summary>Clipboard and Notifications rows sit inside one card with a 4 px inset all round.</summary>
+    private const double ListCardPad = 8;
+    /// <summary>A row's hover fill inside the list card: concentric with the card's 20 px corner at a 4 px inset.</summary>
+    private static readonly CornerRadius RowCorner = new(16);
     private static readonly Color Purple = Color.FromRgb(0x8E, 0x7B, 0xFF), Orange = Color.FromRgb(0xFF, 0x9F, 0x43), Amber = Color.FromRgb(0xFF, 0x9F, 0x0A);
 
     private double ClipListHeight()
@@ -99,7 +103,7 @@ public partial class NotchWindow
         ClipList.Children.Clear();
         if (items.Count == 0)
         {
-            ClipList.Children.Add(Empty("Anything you copy shows up here. Pin the things you reuse."));
+            ClipList.Children.Add(Empty("Anything you copy shows up here. Pin the things you reuse.", dropTarget: false));
         }
         else
         {
@@ -112,8 +116,7 @@ public partial class NotchWindow
     private FrameworkElement ClipRow(ClipItem c)
     {
         var dim = (Brush)FindResource("Dim");
-        var card = (Brush)FindResource("Card");
-        var row = new Border { Height = Row, CornerRadius = new CornerRadius(14), Padding = new Thickness(8, 0, 4, 0), Margin = new Thickness(0, 0, 0, RowGap), Background = Brushes.Transparent, Cursor = Cursors.Hand, ToolTip = "Click to copy" };
+        var row = new Border { Height = Row, CornerRadius = RowCorner, Padding = new Thickness(6, 0, 4, 0), Margin = new Thickness(0, 0, 0, RowGap), Background = Brushes.Transparent, Cursor = Cursors.Hand, ToolTip = "Click to copy" };
         var g = new Grid();
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
@@ -121,7 +124,8 @@ public partial class NotchWindow
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         // leading visual: colour swatch, image thumbnail, or a kind icon
-        var box = new Border { Width = 32, Height = 32, CornerRadius = new CornerRadius(9), Background = card };
+        // the glyph tile is one step lighter than the card it now sits on
+        var box = new Border { Width = 32, Height = 32, CornerRadius = new CornerRadius(10), Background = new SolidColorBrush(Color.FromArgb(0x14, 255, 255, 255)) };
         if (c.Kind == ClipKind.Color && ClipboardHistory.ParseColor(c.Text) is { } col) box.Background = new SolidColorBrush(col);
         else if (c.Kind == ClipKind.Image && c.Thumb != null) box.Background = new ImageBrush(c.Thumb) { Stretch = Stretch.UniformToFill };
         else box.Child = new IconEl { Kind = c.Kind switch { ClipKind.Link => "link", ClipKind.Code => "code", ClipKind.Image => "image", _ => "text" }, Width = 15, Height = 15, Foreground = dim };
@@ -191,10 +195,14 @@ public partial class NotchWindow
         return b;
     }
 
-    private FrameworkElement Empty(string text)
+    /// <summary>
+    /// An empty pane. Dashes mean "drop here" (the Shelf), so only drop targets get them; a list that's simply empty
+    /// shows its message on the plain card it lives in.
+    /// </summary>
+    private FrameworkElement Empty(string text, bool dropTarget = true)
     {
         var g = new Grid { Height = 96 };
-        g.Children.Add(new Rectangle { RadiusX = 20, RadiusY = 20, Stroke = (Brush)FindResource("Faint"), StrokeThickness = 1.5, StrokeDashArray = [4, 3] });
+        if (dropTarget) g.Children.Add(new Rectangle { RadiusX = 20, RadiusY = 20, Stroke = (Brush)FindResource("Faint"), StrokeThickness = 1.5, StrokeDashArray = [4, 3] });
         g.Children.Add(new TextBlock { Text = text, Foreground = (Brush)FindResource("Dim"), FontSize = 12.5, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(24, 0, 24, 0) });
         return g;
     }

@@ -266,11 +266,12 @@ public partial class NotchWindow : Window
     private double PaneHeight(string t) => t switch
     {
         "system" => 144,
-        "clip" => 34 + ClipListHeight(),
+        "clip" => 34 + ListCardPad + ClipListHeight(),
         "shelf" => 34 + ShelfGridHeight(),
         "dev" => 152,
-        "notif" => 34 + NotifListHeight(),
+        "notif" => 34 + ListCardPad + NotifListHeight(),
         "apps" => AppsHeight(),
+        "now" => _media.HasSession ? 140 : 64,   // nothing playing: a single row, not an empty player
         _ => 140,
     };
     private double HubHeight(string t) => HubChrome + PaneHeight(t);
@@ -369,12 +370,15 @@ public partial class NotchWindow : Window
     private string DefaultTab()
     {
         var v = VisibleTabs();
-        if (_cfg.DefaultTab != "auto" && v.Contains(_cfg.DefaultTab)) return _cfg.DefaultTab;
-        // open where the action is: the timer while it runs, the player while something plays
-        var act = Activity();
-        if (act == "timer" && v.Contains("timer")) return "timer";
-        if (act == "music" && v.Contains("now")) return "now";
-        return v.Contains(_tab) ? _tab : v[0];
+        if (v.Contains(_cfg.DefaultTab)) return _cfg.DefaultTab;   // a specific tab picked in Settings
+        if (_cfg.DefaultTab == "playing")
+        {
+            // open where the action is: the timer while it runs, the player while something plays
+            var act = Activity();
+            if (act == "timer" && v.Contains("timer")) return "timer";
+            if (act == "music" && v.Contains("now")) return "now";
+        }
+        return v[0];   // the default: the tab on the left
     }
 
     private Button TabButton(string id) => id switch { "system" => TabSystem, "timer" => TabTimer, "notif" => TabNotif, "clip" => TabClip, "shelf" => TabShelf, "dev" => TabDev, "apps" => TabApps, _ => TabNow };
@@ -551,7 +555,7 @@ public partial class NotchWindow : Window
     private void OnPhaseEnded(Phase was, Phase now)
     {
         var c = FocusTimer.ColorOf(now);
-        ShowToast(new("timerDone", 300, c, "check", c, Color.FromRgb(0x15, 0x11, 0x0A), $"{FocusTimer.Label(was)} done",
+        ShowToast(new("timerDone", 300, c, "check", c, Colors.White, $"{FocusTimer.Label(was)} done",
             $"{FocusTimer.Label(now)} · {_timer.Minutes(now)} min", c, false, 4000));
     }
 
@@ -922,6 +926,7 @@ public partial class NotchWindow : Window
         PlayIcon.Kind = _media.IsPlaying ? "pause" : "play";
         MusicCard.Visibility = _media.HasSession ? Visibility.Visible : Visibility.Collapsed;
         NoMusic.Visibility = _media.HasSession ? Visibility.Collapsed : Visibility.Visible;
+        PaneNow.Height = PaneHeight("now");
         UpdateNowUI();
         Apply();
     }
@@ -959,8 +964,9 @@ public partial class NotchWindow : Window
         // like the Clock app: white digits, dimmed while paused; colour only where it means something
         DialTime.Foreground = Brushes.WhiteSmoke;
         DialTime.Opacity = _timer.Running ? 1 : 0.5;
-        TimerPlay.Background = brush;
-        TimerPlayIcon.Foreground = new SolidColorBrush(Color.FromRgb(0x1A, 0x10, 0x00));
+        // tinted like an "on" Devices tile; the ring around it carries the solid colour
+        TimerPlay.Background = new SolidColorBrush(FocusTimer.Tint(c));
+        TimerPlayIcon.Foreground = new SolidColorBrush(FocusTimer.Light(c));
         TimerPlayIcon.Kind = _timer.Running ? "pause" : "play";
         TimerPlay.ToolTip = _timer.Running ? "Pause" : _timer.Active ? "Resume" : "Start";
         UpdateTimerText();
@@ -1001,13 +1007,17 @@ public partial class NotchWindow : Window
         MemPct.Text = $"{frac * 100:0}%";
         if (MemBar.Parent is FrameworkElement mt) MemBar.Width = frac * mt.ActualWidth;
 
+        // a PC without a battery gets no Battery card: CPU and Memory share the row
+        bool hasBattery = _stats.BatteryPercent is not null;
+        BattCard.Visibility = hasBattery ? Visibility.Visible : Visibility.Collapsed;
+        BattGapCol.Width = new GridLength(hasBattery ? 8 : 0);
+        BattCol.Width = hasBattery ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
         if (_stats.BatteryPercent is { } b)
         {
             BattValue.Text = $"{b}%";
             BattState.Text = _stats.Charging ? "Charging" : "On battery";
             BattBolt.Visibility = _stats.Charging ? Visibility.Visible : Visibility.Collapsed;
         }
-        else { BattValue.Text = "AC"; BattState.Text = "No battery"; BattBolt.Visibility = Visibility.Collapsed; }
     }
 
     private async Task FreeMemory()

@@ -9,7 +9,7 @@ namespace NotchApp.Views;
 
 /// <summary>
 /// Notifications from other apps: each new one drops into the notch for a few seconds (click it to open the app),
-/// and the Alerts tab keeps the recent ones.
+/// and the Notifications tab keeps the recent ones.
 /// </summary>
 public partial class NotchWindow
 {
@@ -31,8 +31,8 @@ public partial class NotchWindow
 
     private void OnNotification(NotifItem n)
     {
-        if (_hub || _hidden || !_cfg.IsLive("notif") || Muted(n)) return;   // the Alerts list still has it
-        if (_cfg.NotifQuietInDnd && QuietMode.On) return;                    // Do not disturb: same, it waits in Alerts
+        if (_hub || _hidden || !_cfg.IsLive("notif") || Muted(n)) return;   // the Notifications list still has it
+        if (_cfg.NotifQuietInDnd && QuietMode.On) return;                    // Do not disturb: same, it waits in the Notifications tab
         bool first = _notif == null;
         _notif = n;
         FillNotif(n);
@@ -94,7 +94,7 @@ public partial class NotchWindow
         if (n != null) NotificationsService.OpenApp(n);
     }
 
-    // ================================================================ Alerts tab
+    // ================================================================ Notifications tab
 
     private double NotifListHeight()
     {
@@ -112,7 +112,7 @@ public partial class NotchWindow
         NotifScroll.Height = NotifListHeight();
         NotifList.Children.Clear();
         if (!_notifs.Allowed) NotifList.Children.Add(NoAccess());
-        else if (items.Count == 0) NotifList.Children.Add(Empty("Notifications from your apps show up here while Notch is running."));
+        else if (items.Count == 0) NotifList.Children.Add(Empty("Notifications from your apps show up here while Notch is running.", dropTarget: false));
         else foreach (var n in items) NotifList.Children.Add(NotifRow(n));
         PaneNotif.Height = PaneHeight("notif");
         if (_hub) Apply();
@@ -120,7 +120,7 @@ public partial class NotchWindow
 
     private FrameworkElement NoAccess()
     {
-        var g = (Grid)Empty("");
+        var g = (Grid)Empty("", dropTarget: false);
         var sp = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
         sp.Children.Add(new TextBlock { Text = "Notch needs permission to read notifications", Foreground = (Brush)FindResource("Dim"), FontSize = 12.5, HorizontalAlignment = HorizontalAlignment.Center });
         var b = new Button
@@ -137,9 +137,8 @@ public partial class NotchWindow
     private FrameworkElement NotifRow(NotifItem n)
     {
         var dim = (Brush)FindResource("Dim");
-        var card = (Brush)FindResource("Card");
         bool text = _cfg.NotifShowText;
-        var row = new Border { Height = Row, CornerRadius = new CornerRadius(14), Padding = new Thickness(8, 0, 10, 0), Margin = new Thickness(0, 0, 0, RowGap), Background = Brushes.Transparent, Cursor = Cursors.Hand, ToolTip = $"Open {n.App}" };
+        var row = new Border { Height = Row, CornerRadius = RowCorner, Padding = new Thickness(6, 0, 10, 0), Margin = new Thickness(0, 0, 0, RowGap), Background = Brushes.Transparent, Cursor = Cursors.Hand, ToolTip = $"Open {n.App}" };
         var g = new Grid();
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });

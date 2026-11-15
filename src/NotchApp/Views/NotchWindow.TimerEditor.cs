@@ -36,10 +36,11 @@ public partial class NotchWindow
             w.GlideTo(Current(key), animate: false);
             w.Committed += v => SetLength(key, v);
         }
+        // Done wears the timer's blue the way an "on" Devices tile does: a tint with the colour in the label
         var accent = FocusTimer.ColorOf(Phase.Focus);
-        EditDone.Background = new SolidColorBrush(accent);
+        EditDone.Background = new SolidColorBrush(FocusTimer.Tint(accent));
+        EditDone.Foreground = new SolidColorBrush(FocusTimer.Light(accent));
         EditDone.Click += (_, _) => CloseTimerEditor();
-        DialBtn.Click += (_, _) => OpenTimerEditor();
         TimerEditBtn.Click += (_, _) => OpenTimerEditor();
 
         EditRows.Children.Add(EditRow("Sessions", Stepper("sessions", 1), false));

@@ -2,7 +2,11 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
 using NotchApp.Services;
 using NotchApp.Settings;
 using Icon = NotchApp.Controls.Icon;
@@ -25,21 +29,26 @@ public partial class SettingsWindow : Window
         ("display", "Display", "system"),
         ("hub", "Hub & activities", "now"),
         ("look", "Appearance & motion", "spark"),
-        ("timer", "Focus timer", "clock"),
+        ("timer", "Timer", "clock"),
         ("notif", "Notifications", "bell"),
         ("clip", "Clipboard & shelf", "clip"),
         ("apps", "Apps", "apps"),
         ("about", "About", "battery"),
     ];
 
+    /// <summary>The same names as the hub's tab labels and tooltips: one name per thing, everywhere.</summary>
     private static readonly Dictionary<string, string> TabNames = new()
     {
-        ["now"] = "Now playing", ["timer"] = "Focus timer", ["notif"] = "Alerts (notifications)", ["clip"] = "Clipboard", ["shelf"] = "Shelf", ["dev"] = "Devices", ["apps"] = "Apps", ["system"] = "System",
+        ["now"] = "Now playing", ["timer"] = "Timer", ["notif"] = "Notifications", ["clip"] = "Clipboard", ["shelf"] = "Shelf", ["dev"] = "Devices", ["apps"] = "Apps", ["system"] = "System",
+    };
+    private static readonly Dictionary<string, string> TabIcons = new()
+    {
+        ["now"] = "now", ["timer"] = "clock", ["notif"] = "bell", ["clip"] = "clip", ["shelf"] = "shelf", ["dev"] = "wifi", ["apps"] = "apps", ["system"] = "system",
     };
     private static readonly (string Key, string Label, string Desc)[] LiveItems =
     [
         ("music", "Now playing", "Album art and beat bars while music plays"),
-        ("timer", "Focus timer", "Countdown while a session runs"),
+        ("timer", "Timer", "Countdown while a session runs"),
         ("notif", "Notifications", "Messages and alerts from your apps drop into the notch"),
         ("timerDone", "Session finished", "When a focus session or break ends"),
         ("volume", "Volume", "While you scroll on the notch"),
@@ -124,7 +133,7 @@ public partial class SettingsWindow : Window
             Row("Hover delay", "How long the cursor rests before it opens", Slide(0, 400, 10, () => _cfg.HoverDelayMs, v => { _cfg.HoverDelayMs = (int)v; Changed(); }, v => $"{v:0} ms"), enabled: _cfg.OpenOnHover),
             Row("Pull down to open", "Drag the notch down to open it, flick it up to close", Toggle(() => _cfg.PullToOpen, v => { _cfg.PullToOpen = v; Changed(); })),
             Row("When the hub opens, show", null, Combo(
-                new[] { ("auto", "What's playing, else last tab") }.Concat(_cfg.Tabs.Where(t => t.On).Select(t => (t.Id, TabNames[t.Id]))).ToArray(),
+                new[] { ("auto", "The first tab, on the left"), ("playing", "What's running or playing") }.Concat(_cfg.Tabs.Where(t => t.On).Select(t => (t.Id, TabNames[t.Id]))).ToArray(),
                 () => _cfg.DefaultTab, v => { _cfg.DefaultTab = v; Changed(); })));
         Group("Gestures",
             Row("Scroll on the notch to change volume", null, Toggle(() => _cfg.ScrollForVolume, v => { _cfg.ScrollForVolume = v; Changed(); })),
@@ -190,27 +199,131 @@ public partial class SettingsWindow : Window
 
     private void Hub()
     {
-        var rows = new List<UIElement>();
-        int on = _cfg.Tabs.Count(t => t.On);
-        for (int i = 0; i < _cfg.Tabs.Count; i++)
-        {
-            var t = _cfg.Tabs[i];
-            int j = i;
-            var ctl = new StackPanel { Orientation = Orientation.Horizontal };
-            var up = new Button { Content = "↑", Width = 36, Margin = new Thickness(0, 0, 4, 0), IsEnabled = i > 0, ToolTip = "Move up" };
-            var down = new Button { Content = "↓", Width = 36, Margin = new Thickness(0, 0, 12, 0), IsEnabled = i < _cfg.Tabs.Count - 1, ToolTip = "Move down" };
-            up.Click += (_, _) => { (_cfg.Tabs[j - 1], _cfg.Tabs[j]) = (_cfg.Tabs[j], _cfg.Tabs[j - 1]); Changed(true); };
-            down.Click += (_, _) => { (_cfg.Tabs[j + 1], _cfg.Tabs[j]) = (_cfg.Tabs[j], _cfg.Tabs[j + 1]); Changed(true); };
-            ctl.Children.Add(up);
-            ctl.Children.Add(down);
-            var tg = Toggle(() => t.On, v => { t.On = v; Changed(true); });
-            tg.IsEnabled = !(t.On && on == 1);   // the last visible tab stays
-            ctl.Children.Add(tg);
-            rows.Add(Row(TabNames[t.Id], null, ctl));
-        }
-        Group("Hub tabs", rows.ToArray());
+        Group("Hub tabs", TabList());
+        Page.Children.Add(Note("Drag a row by its handle to change the order. With the handle focused, Alt+Up and Alt+Down move it too."));
         Group("Live activities",
             LiveItems.Select(l => Row(l.Label, l.Desc, Toggle(() => _cfg.IsLive(l.Key), v => { _cfg.Live[l.Key] = v; Changed(); }))).ToArray());
+    }
+
+    private string? _focusTab;   // the tab whose handle keeps keyboard focus across a rebuild (Alt+Up / Alt+Down)
+
+    /// <summary>
+    /// The hub's tabs, reordered by dragging a row's handle: the row follows the pointer 1:1 from where it was grabbed,
+    /// resists past the ends, the other rows slide out of its way from wherever they are, and on release it settles
+    /// into its slot before the new order is saved.
+    /// </summary>
+    private UIElement TabList()
+    {
+        var tabs = _cfg.Tabs;
+        int n = tabs.Count, on = tabs.Count(t => t.On);
+        var list = new StackPanel();
+        var moves = new TranslateTransform[n];
+        int dragging = -1, target = -1;
+        double grabY = 0, step = 0;
+
+        void Glide(TranslateTransform tt, double to, Action? done = null)
+        {
+            if (!SystemParameters.ClientAreaAnimation)
+            {
+                tt.BeginAnimation(TranslateTransform.YProperty, null); tt.Y = to; done?.Invoke(); return;
+            }
+            // no From: it starts from the value on screen, so a row that's already moving just changes course
+            var a = new DoubleAnimation(to, TimeSpan.FromMilliseconds(220)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+            if (done != null) a.Completed += (_, _) => done();
+            tt.BeginAnimation(TranslateTransform.YProperty, a);
+        }
+
+        void Move(int from, int to)
+        {
+            if (from == to) return;
+            var item = tabs[from];
+            tabs.RemoveAt(from);
+            tabs.Insert(to, item);
+            Changed(true);
+        }
+
+        for (int i = 0; i < n; i++)
+        {
+            var t = tabs[i];
+            int index = i;
+            var grip = new Border
+            {
+                Width = 28, Height = 34, Margin = new Thickness(-8, 0, 6, 0), Background = Brushes.Transparent,
+                Cursor = Cursors.SizeNS, Focusable = true, ToolTip = "Drag to reorder",
+                Child = new Icon { Kind = "grip", Width = 16, Height = 16, Opacity = 0.55 },
+            };
+            var tg = Toggle(() => t.On, v => { t.On = v; Changed(true); });
+            if (t.On && on == 1) { tg.IsEnabled = false; tg.Opacity = 0.4; tg.ToolTip = "One tab always stays on"; }
+
+            var g = new Grid { MinHeight = 44 };
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            g.ColumnDefinitions.Add(new ColumnDefinition());
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var icon = new Icon { Kind = TabIcons[t.Id], Width = 16, Height = 16, Margin = new Thickness(0, 0, 14, 0), Opacity = t.On ? 0.9 : 0.45, VerticalAlignment = VerticalAlignment.Center };
+            var name = new TextBlock { Text = TabNames[t.Id], VerticalAlignment = VerticalAlignment.Center, Opacity = t.On ? 1 : 0.55 };
+            Grid.SetColumn(icon, 1); Grid.SetColumn(name, 2); Grid.SetColumn(tg, 3);
+            tg.VerticalAlignment = VerticalAlignment.Center;
+            g.Children.Add(grip); g.Children.Add(icon); g.Children.Add(name); g.Children.Add(tg);
+
+            var card = Card(g);
+            var tt = moves[i] = new TranslateTransform();
+            card.RenderTransform = tt;
+            list.Children.Add(card);
+
+            void Release()
+            {
+                if (dragging != index) return;
+                dragging = -1;
+                if (grip.IsMouseCaptured) grip.ReleaseMouseCapture();
+                int to = target;
+                Glide(tt, (to - index) * step, () =>
+                {
+                    if (to != index) { _focusTab = null; Move(index, to); return; }
+                    card.Effect = null;
+                    Panel.SetZIndex(card, 0);
+                });
+            }
+
+            grip.MouseLeftButtonDown += (_, e) =>
+            {
+                e.Handled = true;
+                dragging = target = index;
+                grabY = e.GetPosition(list).Y;
+                step = card.ActualHeight + card.Margin.Bottom;
+                grip.CaptureMouse();
+                Panel.SetZIndex(card, 1);
+                card.Effect = new DropShadowEffect { BlurRadius = 18, ShadowDepth = 4, Direction = 270, Opacity = 0.35 };
+            };
+            grip.MouseMove += (_, e) =>
+            {
+                if (dragging != index || step <= 0) return;
+                double dy = e.GetPosition(list).Y - grabY, min = -index * step, max = (n - 1 - index) * step;
+                // past the first or last slot it resists instead of stopping dead
+                double y = dy < min ? min - Motion.Gesture.RubberBand(min - dy, step * 2)
+                         : dy > max ? max + Motion.Gesture.RubberBand(dy - max, step * 2) : dy;
+                tt.BeginAnimation(TranslateTransform.YProperty, null);
+                tt.Y = y;
+                int slot = Math.Clamp(index + (int)Math.Round(y / step), 0, n - 1);
+                if (slot == target) return;
+                target = slot;
+                for (int k = 0; k < n; k++)
+                    if (k != index) Glide(moves[k], k > index && k <= slot ? -step : k < index && k >= slot ? step : 0);
+            };
+            grip.MouseLeftButtonUp += (_, _) => Release();
+            grip.LostMouseCapture += (_, _) => Release();
+            grip.KeyDown += (_, e) =>
+            {
+                var key = e.Key == Key.System ? e.SystemKey : e.Key;
+                if (Keyboard.Modifiers != ModifierKeys.Alt || key is not (Key.Up or Key.Down)) return;
+                e.Handled = true;
+                int to = Math.Clamp(index + (key == Key.Up ? -1 : 1), 0, n - 1);
+                _focusTab = t.Id;
+                Move(index, to);
+            };
+            if (_focusTab == t.Id) grip.Loaded += (_, _) => grip.Focus();
+        }
+        return list;
     }
 
     private void Look()
@@ -224,17 +337,113 @@ public partial class SettingsWindow : Window
             Row("Pulse with the music", null, Toggle(() => _cfg.BeatPulse, v => { _cfg.BeatPulse = v; Changed(); })));
     }
 
+    private static readonly (string Name, string Hint, int Focus, int Break, int Long, int Sessions)[] TimerPresets =
+    [
+        ("Classic", "The Pomodoro rhythm", 25, 5, 15, 4),
+        ("Deep work", "Longer stretches", 50, 10, 30, 3),
+        ("Quick", "Short bursts", 15, 3, 15, 4),
+    ];
+
+    /// <summary>
+    /// The timer page: start from a preset, see one round drawn to scale, then fine-tune with sliders. Sliders update
+    /// the round and the presets in place, so dragging one never rebuilds the page under the pointer.
+    /// </summary>
     private void Timer()
     {
         var t = _cfg.Timer;
+        var presetHost = new ContentControl();
+        var roundHost = new ContentControl();
+        void Refresh() { presetHost.Content = PresetCards(); roundHost.Content = Round(); }
+
+        UIElement PresetCards()
+        {
+            var grid = new UniformGrid { Rows = 1, Margin = new Thickness(0, 0, -6, 3) };
+            foreach (var p in TimerPresets.Append((Name: "Custom", Hint: "Your own lengths", Focus: 0, Break: 0, Long: 0, Sessions: 0)))
+            {
+                bool custom = p.Focus == 0;
+                bool matches = TimerPresets.Any(x => x.Focus == t.Focus && x.Break == t.ShortBreak && x.Long == t.LongBreak && x.Sessions == t.Sessions);
+                bool sel = custom ? !matches : p.Focus == t.Focus && p.Break == t.ShortBreak && p.Long == t.LongBreak && p.Sessions == t.Sessions;
+                var accent = FocusTimer.ColorOf(Phase.Focus);
+                var sp = new StackPanel();
+                sp.Children.Add(new TextBlock { Text = p.Name, FontWeight = FontWeights.SemiBold });
+                sp.Children.Add(new TextBlock { Text = custom ? p.Hint : $"{p.Focus} · {p.Break} · {p.Long} min", FontSize = 12, Opacity = 0.7, Margin = new Thickness(0, 2, 0, 0) });
+                if (!custom) sp.Children.Add(new TextBlock { Text = $"{p.Sessions} sessions a round", FontSize = 12, Opacity = 0.5 });
+                var card = new Border
+                {
+                    Child = sp, Padding = new Thickness(14, 12, 14, 12), Margin = new Thickness(0, 0, 6, 0), CornerRadius = new CornerRadius(8),
+                    Background = new SolidColorBrush(sel ? FocusTimer.Tint(accent) : Color.FromArgb(14, 255, 255, 255)),
+                    BorderBrush = new SolidColorBrush(sel ? accent : Color.FromArgb(18, 255, 255, 255)), BorderThickness = new Thickness(sel ? 1.5 : 1),
+                    Cursor = custom ? null : Cursors.Hand, ToolTip = custom ? "Move any slider below to make your own" : $"Use {p.Name}",
+                };
+                if (!custom)
+                    card.MouseLeftButtonUp += (_, _) =>
+                    {
+                        (t.Focus, t.ShortBreak, t.LongBreak, t.Sessions) = (p.Focus, p.Break, p.Long, p.Sessions);
+                        Changed(true);
+                    };
+                grid.Children.Add(card);
+            }
+            return grid;
+        }
+
+        // one round drawn to scale: focus, break, focus … long break, with what it adds up to
+        UIElement Round()
+        {
+            var focus = FocusTimer.ColorOf(Phase.Focus); var brk = FocusTimer.ColorOf(Phase.Break); var lng = FocusTimer.ColorOf(Phase.LongBreak);
+            int total = t.Sessions * t.Focus + (t.Sessions - 1) * t.ShortBreak + t.LongBreak;
+            var sp = new StackPanel();
+            var head = new Grid { Margin = new Thickness(0, 0, 0, 10) };
+            head.Children.Add(new TextBlock { Text = "One round", Opacity = 0.75 });
+            head.Children.Add(new TextBlock { Text = Duration(total), FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Right });
+            sp.Children.Add(head);
+
+            var bar = new Grid { Height = 14 };
+            void Seg(int minutes, Color c, string tip)
+            {
+                bar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(minutes, GridUnitType.Star) });
+                var b = new Border { Background = new SolidColorBrush(c), CornerRadius = new CornerRadius(4), Margin = new Thickness(0, 0, 3, 0), ToolTip = tip };
+                Grid.SetColumn(b, bar.ColumnDefinitions.Count - 1);
+                bar.Children.Add(b);
+            }
+            for (int i = 1; i <= t.Sessions; i++)
+            {
+                Seg(t.Focus, focus, $"Focus {i} · {t.Focus} min");
+                if (i < t.Sessions) Seg(t.ShortBreak, brk, $"Break · {t.ShortBreak} min");
+            }
+            Seg(t.LongBreak, lng, $"Long break · {t.LongBreak} min");
+            sp.Children.Add(bar);
+
+            var legend = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
+            void Key(Color c, string text)
+            {
+                var k = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 20, 0) };
+                k.Children.Add(new Border { Width = 8, Height = 8, CornerRadius = new CornerRadius(4), Background = new SolidColorBrush(c), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 7, 0) });
+                k.Children.Add(new TextBlock { Text = text, FontSize = 12.5, Opacity = 0.8 });
+                legend.Children.Add(k);
+            }
+            Key(focus, $"{t.Sessions} × {t.Focus} min focus");
+            if (t.Sessions > 1) Key(brk, $"{t.Sessions - 1} × {t.ShortBreak} min break");
+            Key(lng, $"{t.LongBreak} min long break");
+            sp.Children.Add(legend);
+            return Card(sp);
+        }
+
+        Refresh();
+        Group("Start from", presetHost);
+        Group("Your round", roundHost);
+        void Set(Action apply) { apply(); Changed(); Refresh(); }
         Group("Lengths",
-            Row("Focus", null, Step(() => t.Focus, v => { t.Focus = v; Changed(true); }, 1, 1, 180, "min")),
-            Row("Short break", null, Step(() => t.ShortBreak, v => { t.ShortBreak = v; Changed(true); }, 1, 1, 30, "min")),
-            Row("Long break", null, Step(() => t.LongBreak, v => { t.LongBreak = v; Changed(true); }, 5, 5, 60, "min")),
-            Row("Sessions before a long break", null, Step(() => t.Sessions, v => { t.Sessions = v; Changed(true); }, 1, 1, 8, "")),
-            Row("Start the next session automatically", null, Toggle(() => t.AutoStart, v => { t.AutoStart = v; Changed(); })));
-        Page.Children.Add(Note("Changing the length of the session that's running restarts it at the new length."));
+            Row("Focus", null, Slide(1, 120, 1, () => t.Focus, v => Set(() => t.Focus = (int)v), v => $"{v:0} min")),
+            Row("Break", "Between focus sessions", Slide(1, 30, 1, () => t.ShortBreak, v => Set(() => t.ShortBreak = (int)v), v => $"{v:0} min")),
+            Row("Long break", "After the last session of a round", Slide(5, 60, 5, () => t.LongBreak, v => Set(() => t.LongBreak = (int)v), v => $"{v:0} min")),
+            Row("Sessions in a round", null, Slide(1, 8, 1, () => t.Sessions, v => Set(() => t.Sessions = (int)v), v => $"{v:0}")));
+        Group("Flow",
+            Row("Start the next session automatically", "Breaks and focus sessions follow each other without a click", Toggle(() => t.AutoStart, v => { t.AutoStart = v; Changed(); })));
+        Page.Children.Add(Note("Changing the length of the session that's running restarts it at the new length. The same lengths are on the Timer tab in the notch: press its edit button."));
     }
+
+    private static string Duration(int minutes) =>
+        minutes < 60 ? $"{minutes} min" : minutes % 60 == 0 ? $"{minutes / 60} h" : $"{minutes / 60} h {minutes % 60} min";
 
     private void Notifications()
     {
@@ -254,9 +463,9 @@ public partial class SettingsWindow : Window
         Group("In the notch",
             Row("Show notifications in the notch", "They drop in for a few seconds; click one to open its app", Toggle(() => _cfg.IsLive("notif"), v => { _cfg.Live["notif"] = v; Changed(true); })),
             Row("Show the message", "Off shows only which app it's from, handy when sharing your screen", Toggle(() => _cfg.NotifShowText, v => { _cfg.NotifShowText = v; Changed(); }), enabled: _cfg.IsLive("notif")),
-            Row("Stay quiet during Do not disturb", "While Windows Do not disturb or Focus is on, notifications wait in the Alerts tab instead", Toggle(() => _cfg.NotifQuietInDnd, v => { _cfg.NotifQuietInDnd = v; Changed(); }), enabled: _cfg.IsLive("notif")),
+            Row("Stay quiet during Do not disturb", "While Windows Do not disturb or Focus is on, notifications wait in the Notifications tab instead", Toggle(() => _cfg.NotifQuietInDnd, v => { _cfg.NotifQuietInDnd = v; Changed(); }), enabled: _cfg.IsLive("notif")),
             Row("Stay for", null, Step(() => _cfg.NotifSeconds, v => { _cfg.NotifSeconds = v; Changed(); }, 1, 2, 15, "s"), enabled: _cfg.IsLive("notif")));
-        Page.Children.Add(Note("Windows still shows its own banner too. Notch can read notifications but can't hide another app's. The Alerts list lives in memory and is gone when Notch quits."));
+        Page.Children.Add(Note("Windows still shows its own banner too. Notch can read notifications but can't hide another app's. The Notifications list lives in memory and is gone when Notch quits."));
 
         var apps = svc.SeenApps.Union(_cfg.NotifMuted, StringComparer.OrdinalIgnoreCase).OrderBy(a => a, StringComparer.OrdinalIgnoreCase).ToList();
         if (apps.Count == 0)
@@ -400,11 +609,19 @@ public partial class SettingsWindow : Window
 
     private static TextBlock Note(string text) => new() { Text = text, Opacity = 0.6, FontSize = 12.5, Margin = new Thickness(2, -12, 0, 24), TextWrapping = TextWrapping.Wrap };
 
-    private static CheckBox Toggle(Func<bool> get, Action<bool> set)
+    /// <summary>
+    /// The same switch as the hub's timer editor, focusable here so Tab and Space work. The setting is applied once the
+    /// knob has finished travelling: many settings redraw the page, and doing that at once would cut the animation off.
+    /// </summary>
+    private static Controls.Switch Toggle(Func<bool> get, Action<bool> set)
     {
-        var cb = new CheckBox { IsChecked = get(), Content = get() ? "On" : "Off", MinWidth = 0 };
-        cb.Click += (_, _) => { bool v = cb.IsChecked == true; cb.Content = v ? "On" : "Off"; set(v); };
-        return cb;
+        var sw = new Controls.Switch { IsOn = get(), Focusable = true };
+        sw.Toggled += async v =>
+        {
+            if (SystemParameters.ClientAreaAnimation) await Task.Delay(280);
+            set(v);
+        };
+        return sw;
     }
 
     private static UIElement Slide(double min, double max, double step, Func<double> get, Action<double> set, Func<double, string> fmt)

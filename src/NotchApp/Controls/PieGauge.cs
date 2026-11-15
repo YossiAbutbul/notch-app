@@ -7,7 +7,7 @@ namespace NotchApp.Controls;
 public sealed class PieGauge : FrameworkElement
 {
     public double Fraction { get; set; } = 1;
-    public Color Color { get; set; } = Color.FromRgb(0xFF, 0x9F, 0x0A);
+    public Color Color { get; set; } = Color.FromRgb(0x0A, 0x84, 0xFF);
 
     protected override void OnRender(DrawingContext dc)
     {

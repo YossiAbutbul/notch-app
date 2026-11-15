@@ -156,14 +156,14 @@
                   <Border CornerRadius="16" BorderThickness="0,1,0,0" BorderBrush="#14FFFFFF"/>
                 </Border>
                 <StackPanel x:Name="TabButtons" Orientation="Horizontal">
-                <Button x:Name="TabNow" Style="{StaticResource Tab}" Tag="now" ToolTip="Now">
-                  <StackPanel Orientation="Horizontal"><c:Icon Kind="now" Width="16" Height="16"/><Border ClipToBounds="True" Width="0"><TextBlock Text="Now" Margin="7,0,0,0" Opacity="0"/></Border></StackPanel>
+                <Button x:Name="TabNow" Style="{StaticResource Tab}" Tag="now" ToolTip="Now playing">
+                  <StackPanel Orientation="Horizontal"><c:Icon Kind="now" Width="16" Height="16"/><Border ClipToBounds="True" Width="0"><TextBlock Text="Now playing" Margin="7,0,0,0" Opacity="0"/></Border></StackPanel>
                 </Button>
                 <Button x:Name="TabTimer" Style="{StaticResource Tab}" Tag="timer" ToolTip="Timer">
                   <StackPanel Orientation="Horizontal"><c:Icon Kind="clock" Width="16" Height="16"/><Border ClipToBounds="True" Width="0"><TextBlock Text="Timer" Margin="7,0,0,0" Opacity="0"/></Border></StackPanel>
                 </Button>
-                <Button x:Name="TabNotif" Style="{StaticResource Tab}" Tag="notif" ToolTip="Alerts">
-                  <StackPanel Orientation="Horizontal"><c:Icon Kind="bell" Width="16" Height="16"/><Border ClipToBounds="True" Width="0"><TextBlock Text="Alerts" Margin="7,0,0,0" Opacity="0"/></Border></StackPanel>
+                <Button x:Name="TabNotif" Style="{StaticResource Tab}" Tag="notif" ToolTip="Notifications">
+                  <StackPanel Orientation="Horizontal"><c:Icon Kind="bell" Width="16" Height="16"/><Border ClipToBounds="True" Width="0"><TextBlock Text="Notifications" Margin="7,0,0,0" Opacity="0"/></Border></StackPanel>
                 </Button>
                 <Button x:Name="TabClip" Style="{StaticResource Tab}" Tag="clip" ToolTip="Clipboard">
                   <StackPanel Orientation="Horizontal"><c:Icon Kind="clip" Width="16" Height="16"/><Border ClipToBounds="True" Width="0"><TextBlock Text="Clipboard" Margin="7,0,0,0" Opacity="0"/></Border></StackPanel>
@@ -226,10 +226,18 @@
                           </StackPanel>
                         </Grid>
                       </Grid>
-                      <StackPanel x:Name="NoMusic" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed">
-                        <c:Icon Kind="now" Width="22" Height="22" Foreground="{StaticResource Dim}" HorizontalAlignment="Center"/>
-                        <TextBlock Text="Nothing playing" Foreground="{StaticResource Dim}" Margin="0,8,0,0" HorizontalAlignment="Center"/>
-                      </StackPanel>
+                      <!-- nothing playing: one short row instead of an empty player (the pane shrinks to fit it) -->
+                      <Grid x:Name="NoMusic" VerticalAlignment="Center" Visibility="Collapsed">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="40"/><ColumnDefinition Width="12"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                        <Border Width="40" Height="40" CornerRadius="10">
+                          <Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#2A2D3A" Offset="0"/><GradientStop Color="#15161C" Offset="1"/></LinearGradientBrush></Border.Background>
+                          <c:Icon Kind="now" Width="18" Height="18" Foreground="{StaticResource Dim}"/>
+                        </Border>
+                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                          <TextBlock Text="Nothing playing" FontWeight="SemiBold" FontSize="13.5"/>
+                          <TextBlock Text="Play music or a video in any app to control it here" Foreground="{StaticResource Dim}" FontSize="12" TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                      </Grid>
                     </Grid>
                   </Border>
                 </Grid>
@@ -266,9 +274,10 @@
                               <TextBlock x:Name="PhaseText" FontSize="13" FontWeight="SemiBold" Text="Focus"/>
                               <TextBlock x:Name="PhaseCount" FontSize="13" Foreground="{StaticResource Dim}"/>
                             </StackPanel>
-                            <Button x:Name="DialBtn" Style="{StaticResource Press}" HorizontalAlignment="Right" Padding="8,0,4,0" Height="62" ToolTip="Edit timer">
-                              <c:RollingText x:Name="DialTime" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="50"/>
-                            </Button>
+                            <!-- just the time: the edit button opens the editor -->
+                            <Border HorizontalAlignment="Right" Padding="8,0,4,0" Height="62">
+                              <c:RollingText x:Name="DialTime" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="50" VerticalAlignment="Center"/>
+                            </Border>
                             <TextBlock x:Name="EndsAt" HorizontalAlignment="Right" FontSize="13" Foreground="{StaticResource Dim}" Margin="0,6,4,0"/>
                           </StackPanel>
                         </Grid>
@@ -314,15 +323,17 @@
                   </Grid>
                 </Grid>
 
-                <!-- Alerts: notifications from other apps -->
+                <!-- Notifications from other apps. Lists sit in one grouped card, like every other pane's content. -->
                 <StackPanel x:Name="PaneNotif" Width="576" VerticalAlignment="Top">
                   <Grid Height="26" Margin="8,0,0,8">
                     <TextBlock x:Name="NotifCount" Foreground="{StaticResource Dim}" FontSize="12" VerticalAlignment="Center" Text="Recent"/>
                     <Button x:Name="NotifClear" Style="{StaticResource Press}" HorizontalAlignment="Right" Height="26" Padding="11,0" Background="{StaticResource Faint}" FontWeight="SemiBold" FontSize="11.5" Content="Clear"/>
                   </Grid>
-                  <ScrollViewer x:Name="NotifScroll" VerticalScrollBarVisibility="Hidden" Height="166" PanningMode="VerticalOnly">
-                    <StackPanel x:Name="NotifList" Margin="0,0,0,-4"/>
-                  </ScrollViewer>
+                  <Border Background="{StaticResource Card}" CornerRadius="20" Padding="4">
+                    <ScrollViewer x:Name="NotifScroll" VerticalScrollBarVisibility="Hidden" Height="166" PanningMode="VerticalOnly">
+                      <StackPanel x:Name="NotifList" Margin="0,0,0,-4"/>
+                    </ScrollViewer>
+                  </Border>
                 </StackPanel>
 
                 <!-- Clipboard -->
@@ -331,9 +342,11 @@
                     <TextBlock x:Name="ClipCount" Foreground="{StaticResource Dim}" FontSize="12" VerticalAlignment="Center" Text="Recent"/>
                     <Button x:Name="ClipClear" Style="{StaticResource Press}" HorizontalAlignment="Right" Height="26" Padding="11,0" Background="{StaticResource Faint}" FontWeight="SemiBold" FontSize="11.5" Content="Clear unpinned"/>
                   </Grid>
-                  <ScrollViewer x:Name="ClipScroll" VerticalScrollBarVisibility="Hidden" Height="166" PanningMode="VerticalOnly">
-                    <StackPanel x:Name="ClipList" Margin="0,0,0,-4"/>
-                  </ScrollViewer>
+                  <Border Background="{StaticResource Card}" CornerRadius="20" Padding="4">
+                    <ScrollViewer x:Name="ClipScroll" VerticalScrollBarVisibility="Hidden" Height="166" PanningMode="VerticalOnly">
+                      <StackPanel x:Name="ClipList" Margin="0,0,0,-4"/>
+                    </ScrollViewer>
+                  </Border>
                 </StackPanel>
 
                 <!-- Shelf -->
@@ -380,7 +393,7 @@
                   <Grid.RowDefinitions><RowDefinition Height="104"/><RowDefinition Height="8"/><RowDefinition Height="32"/></Grid.RowDefinitions>
                   <Grid>
                     <Grid.ColumnDefinitions>
-                      <ColumnDefinition/><ColumnDefinition Width="8"/><ColumnDefinition/><ColumnDefinition Width="8"/><ColumnDefinition/>
+                      <ColumnDefinition/><ColumnDefinition Width="8"/><ColumnDefinition/><ColumnDefinition x:Name="BattGapCol" Width="8"/><ColumnDefinition x:Name="BattCol"/>
                     </Grid.ColumnDefinitions>
                     <Border Background="{StaticResource Card}" CornerRadius="20" Padding="16,12">
                       <DockPanel>
@@ -400,7 +413,7 @@
                         </Border>
                       </DockPanel>
                     </Border>
-                    <Border Grid.Column="4" Background="{StaticResource Card}" CornerRadius="20" Padding="16,12">
+                    <Border x:Name="BattCard" Grid.Column="4" Background="{StaticResource Card}" CornerRadius="20" Padding="16,12">
                       <DockPanel>
                         <Grid DockPanel.Dock="Top"><TextBlock Style="{StaticResource Label}" Text="Battery"/><c:Icon x:Name="BattBolt" Kind="bolt" Width="12" Height="12" HorizontalAlignment="Right" Foreground="#30D158" Visibility="Collapsed"/></Grid>
                         <TextBlock x:Name="BattValue" DockPanel.Dock="Top" FontFamily="{StaticResource Display}" FontWeight="SemiBold" FontSize="22" Margin="0,6,0,0"/>

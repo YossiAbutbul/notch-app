@@ -52,7 +52,34 @@ public sealed class Switch : Border
         Background = b;
     }
 
-    protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e) { e.Handled = true; _down = true; CaptureMouse(); }
+    protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
+    {
+        e.Handled = true; _down = true; CaptureMouse(); if (Focusable) Focus();
+        Stretch(true);
+    }
+
+    /// <summary>
+    /// Like iOS: the knob widens the moment it's pressed (growing away from the side it rests on) and narrows again
+    /// as it travels, so the press is felt before the release.
+    /// </summary>
+    private void Stretch(bool down)
+    {
+        if (!SystemParameters.ClientAreaAnimation) return;
+        const double rest = 18, pressed = 23;
+        double w = down ? pressed : rest;
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        _knob.BeginAnimation(WidthProperty, new DoubleAnimation(w, TimeSpan.FromMilliseconds(140)) { EasingFunction = ease });
+        if (_on) _x.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(16 - (w - rest), TimeSpan.FromMilliseconds(140)) { EasingFunction = ease });
+    }
+
+    /// <summary>When the host makes it focusable (the Settings window does), Space or Enter flips it.</summary>
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (e.Key is not (Key.Space or Key.Enter)) { base.OnKeyDown(e); return; }
+        e.Handled = true;
+        IsOn = !IsOn;
+        Toggled?.Invoke(IsOn);
+    }
 
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
@@ -61,6 +88,7 @@ public sealed class Switch : Border
         ReleaseMouseCapture();
         if (!_down) return;
         _down = false;
+        Stretch(false);
         if (!inside) return;   // dragged off: cancelled
         IsOn = !IsOn;
         Toggled?.Invoke(IsOn);

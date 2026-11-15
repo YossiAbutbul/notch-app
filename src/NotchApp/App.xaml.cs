@@ -76,6 +76,8 @@ public partial class App : Application
         _notch.ApplyLaunchArgs(args);
 
         CreateTray();
+        // --settings or --settings=hub (any page id) opens Settings at launch, for checking pages without the mouse
+        if (args.FirstOrDefault(a => a.StartsWith("--settings")) is { } s) OpenSettings(s.Contains('=') ? s[(s.IndexOf('=') + 1)..] : null);
         await media.InitAsync();
         await devices.InitAsync();
         await notifs.InitAsync();
