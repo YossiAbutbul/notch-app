@@ -29,7 +29,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Resource Include="Assets/Notch.ico" />  </ItemGroup>
+    <Resource Include="Assets/Notch.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <!-- keep WinForms types out of the global namespace so WPF names (Application, Point, Color…) stay unambiguous -->
