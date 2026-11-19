@@ -57,6 +57,8 @@ public partial class SettingsWindow : Window
         ("copy", "Copied to clipboard", "A short preview of what you copied"),
         ("files", "Files added to Shelf", "After you drop files on the notch"),
         ("device", "Devices connecting", "Earbuds, headphones, keyboards and controllers, with battery"),
+        ("lowbat", "Device battery low", "When a connected device drops below 20%"),
+        ("output", "Sound output changes", "Which speakers or headphones sound now plays on"),
         ("launch", "App launching", "When you open something from the Apps tab"),
     ];
 

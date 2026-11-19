@@ -101,8 +101,8 @@ internal interface IMMDevice
 [ComImport, Guid("5CDF2C82-841E-4546-9722-0CF74078229A"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
 internal interface IAudioEndpointVolume
 {
-    [PreserveSig] int RegisterControlChangeNotify(IntPtr notify);
-    [PreserveSig] int UnregisterControlChangeNotify(IntPtr notify);
+    [PreserveSig] int RegisterControlChangeNotify(IAudioEndpointVolumeCallback notify);
+    [PreserveSig] int UnregisterControlChangeNotify(IAudioEndpointVolumeCallback notify);
     [PreserveSig] int GetChannelCount(out uint count);
     [PreserveSig] int SetMasterVolumeLevel(float levelDb, ref Guid context);
     [PreserveSig] int SetMasterVolumeLevelScalar(float level, ref Guid context);
@@ -116,34 +116,86 @@ internal interface IAudioEndpointVolume
     [PreserveSig] int GetMute([MarshalAs(UnmanagedType.Bool)] out bool mute);
 }
 
-/// <summary>Reads and sets the system output volume without showing the Windows volume flyout.</summary>
+[ComImport, Guid("657804FA-D6AD-4496-8A60-352752AF4F89"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IAudioEndpointVolumeCallback
+{
+    [PreserveSig] int OnNotify(IntPtr notifyData);
+}
+
+/// <summary>Windows calls this (on its own thread) whenever the endpoint's volume or mute changes.</summary>
+[ComVisible(true), ClassInterface(ClassInterfaceType.None)]
+public sealed class VolumeCallback : IAudioEndpointVolumeCallback
+{
+    private readonly Action _changed;
+    internal VolumeCallback(Action changed) => _changed = changed;
+    int IAudioEndpointVolumeCallback.OnNotify(IntPtr notifyData) { try { _changed(); } catch { } return 0; }
+}
+
+/// <summary>
+/// Reads and sets the volume of the default output without showing the Windows volume flyout. Windows tells us when
+/// the volume or mute changes (from anywhere: keys, the flyout, other apps) and when the default output changes
+/// (headphones connecting), so nothing polls.
+/// </summary>
 internal sealed class SystemVolume
 {
-    private readonly IAudioEndpointVolume? _ep;
+    private readonly IMMDeviceEnumerator? _en;
+    private readonly VolumeCallback _cb;
+    private IAudioEndpointVolume? _ep;
+
+    /// <summary>Volume or mute changed. Raised on a background thread.</summary>
+    public event Action? Changed;
+    /// <summary>The default output changed; call <see cref="Rebind"/> on the UI thread. Raised on a background thread.</summary>
+    public event Action? OutputChanged;
+    /// <summary>The default output's name, e.g. "Headphones (WH-1000XM4)", once <see cref="RefreshNameAsync"/> has run.</summary>
+    public string? OutputName { get; private set; }
 
     public SystemVolume()
     {
+        _cb = new VolumeCallback(() => Changed?.Invoke());
+        try { _en = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject(); }
+        catch { _en = null; }
+        Rebind();
+        try { Windows.Media.Devices.MediaDevice.DefaultAudioRenderDeviceChanged += (_, _) => OutputChanged?.Invoke(); } catch { }
+    }
+
+    /// <summary>Attach to the current default output.</summary>
+    public void Rebind()
+    {
+        try { _ep?.UnregisterControlChangeNotify(_cb); } catch { }
+        _ep = null;
         try
         {
-            var en = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
-            if (en.GetDefaultAudioEndpoint(0 /* render */, 1 /* multimedia */, out var dev) != 0) return;
+            if (_en == null || _en.GetDefaultAudioEndpoint(0 /* render */, 1 /* multimedia */, out var dev) != 0) return;
             var iid = typeof(IAudioEndpointVolume).GUID;
-            if (dev.Activate(ref iid, 23 /* CLSCTX_ALL */, IntPtr.Zero, out var o) == 0) _ep = (IAudioEndpointVolume)o;
+            if (dev.Activate(ref iid, 23 /* CLSCTX_ALL */, IntPtr.Zero, out var o) != 0) return;
+            _ep = (IAudioEndpointVolume)o;
+            _ep.RegisterControlChangeNotify(_cb);
         }
         catch { _ep = null; }
+    }
+
+    public async Task<string?> RefreshNameAsync()
+    {
+        try
+        {
+            var id = Windows.Media.Devices.MediaDevice.GetDefaultAudioRenderId(Windows.Media.Devices.AudioDeviceRole.Default);
+            OutputName = string.IsNullOrEmpty(id) ? null : (await Windows.Devices.Enumeration.DeviceInformation.CreateFromIdAsync(id)).Name;
+        }
+        catch { OutputName = null; }
+        return OutputName;
     }
 
     public bool Available => _ep != null;
 
     public double Level
     {
-        get { if (_ep == null) return 0; _ep.GetMasterVolumeLevelScalar(out var v); return v; }
-        set { if (_ep == null) return; var g = Guid.Empty; _ep.SetMasterVolumeLevelScalar((float)Math.Clamp(value, 0, 1), ref g); }
+        get { try { if (_ep == null) return 0; _ep.GetMasterVolumeLevelScalar(out var v); return v; } catch { return 0; } }
+        set { try { if (_ep == null) return; var g = Guid.Empty; _ep.SetMasterVolumeLevelScalar((float)Math.Clamp(value, 0, 1), ref g); } catch { } }
     }
 
     public bool Muted
     {
-        get { if (_ep == null) return false; _ep.GetMute(out var m); return m; }
-        set { if (_ep == null) return; var g = Guid.Empty; _ep.SetMute(value, ref g); }
+        get { try { if (_ep == null) return false; _ep.GetMute(out var m); return m; } catch { return false; } }
+        set { try { if (_ep == null) return; var g = Guid.Empty; _ep.SetMute(value, ref g); } catch { } }
     }
 }

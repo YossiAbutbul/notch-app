@@ -24,6 +24,11 @@ public partial class NotchWindow
             string value = d.Battery is { } b ? $"{b}%" : "";
             ShowToast(new("device", 300, Color.FromRgb(110, 165, 255), d.Kind, Blue, Colors.White, $"{d.Name} connected", value, Green, false, 2600));
         };
+        _dev.BatteryLow += d =>
+        {
+            var red = Color.FromRgb(0xFF, 0x45, 0x3A);
+            ShowToast(new("lowbat", 300, red, "battery", Color.FromArgb(0x40, 0xFF, 0x45, 0x3A), red, $"{d.Name} battery low", $"{d.Battery}%", red, false, 4000));
+        };
         BtManage.Click += (_, _) => DevicesService.OpenSettings("bluetooth");
     }
 

@@ -213,18 +213,34 @@
                           <Grid Grid.Row="2">
                             <Grid.ColumnDefinitions><ColumnDefinition Width="38"/><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                             <TextBlock x:Name="SongPos" Foreground="{StaticResource Dim}" FontSize="11" VerticalAlignment="Center" Text="0:00"/>
-                            <Border Grid.Column="1" Height="5" CornerRadius="2.5" Background="#29FFFFFF" VerticalAlignment="Center">
-                              <Border x:Name="SongBar" HorizontalAlignment="Left" CornerRadius="2.5" Background="#E6F4F5F8" Width="0"/>
-                            </Border>
+                            <!-- click or drag to seek (when the player allows it); a taller transparent strip makes it easy to hit -->
+                            <Grid x:Name="SongTrack" Grid.Column="1" Height="14" Background="Transparent">
+                              <Border Height="5" CornerRadius="2.5" Background="#29FFFFFF" VerticalAlignment="Center">
+                                <Border x:Name="SongBar" HorizontalAlignment="Left" CornerRadius="2.5" Background="#E6F4F5F8" Width="0"/>
+                              </Border>
+                            </Grid>
                             <TextBlock x:Name="SongLen" Grid.Column="2" Foreground="{StaticResource Dim}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center" Text="-0:00"/>
                           </Grid>
-                          <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Center">
-                            <Button x:Name="PrevBtn" Style="{StaticResource Press}" Width="52" Height="38" ToolTip="Previous"><c:Icon Kind="back" Width="22" Height="22"/></Button>
-                            <Button x:Name="PlayBtn" Style="{StaticResource Press}" Width="56" Height="38" Margin="18,0">
-                              <c:Icon x:Name="PlayIcon" Kind="pause" Width="26" Height="26"/>
-                            </Button>
-                            <Button x:Name="NextBtn" Style="{StaticResource Press}" Width="52" Height="38" ToolTip="Next"><c:Icon Kind="fwd" Width="22" Height="22"/></Button>
-                          </StackPanel>
+                          <Grid Grid.Row="4">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                              <Button x:Name="PrevBtn" Style="{StaticResource Press}" Width="52" Height="38" ToolTip="Previous"><c:Icon Kind="back" Width="22" Height="22"/></Button>
+                              <Button x:Name="PlayBtn" Style="{StaticResource Press}" Width="56" Height="38" Margin="18,0">
+                                <c:Icon x:Name="PlayIcon" Kind="pause" Width="26" Height="26"/>
+                              </Button>
+                              <Button x:Name="NextBtn" Style="{StaticResource Press}" Width="52" Height="38" ToolTip="Next"><c:Icon Kind="fwd" Width="22" Height="22"/></Button>
+                            </StackPanel>
+                            <!-- volume of the current output: click the speaker to mute, click/drag the bar or scroll on it -->
+                            <StackPanel x:Name="VolRow" Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                              <Button x:Name="MuteBtn" Style="{StaticResource Press}" Width="26" Height="26" Foreground="{StaticResource Dim}" ToolTip="Mute">
+                                <c:Icon x:Name="MuteIcon" Kind="speaker" Width="15" Height="15"/>
+                              </Button>
+                              <Grid x:Name="VolTrack" Width="72" Height="22" Margin="4,0,0,0" Background="Transparent" Cursor="Hand">
+                                <Border Height="5" CornerRadius="2.5" Background="#29FFFFFF" VerticalAlignment="Center"/>
+                                <Border x:Name="VolBar" Height="5" CornerRadius="2.5" Background="#E6F4F5F8" HorizontalAlignment="Left" VerticalAlignment="Center" Width="0"/>
+                              </Grid>
+                            </StackPanel>
+                          </Grid>
                         </Grid>
                       </Grid>
                       <!-- nothing playing: one short row instead of an empty player (the pane shrinks to fit it) -->

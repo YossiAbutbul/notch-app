@@ -46,6 +46,10 @@ public sealed class DevicesService
 
     public event Action? Changed;
     public event Action<BtDevice>? DeviceConnected;
+    /// <summary>A connected device's battery dropped below <see cref="LowBattery"/>%. Raised once per drop.</summary>
+    public event Action<BtDevice>? BatteryLow;
+    public const int LowBattery = 20;
+    private readonly HashSet<string> _warnedLow = [];
 
     public async Task InitAsync()
     {
@@ -65,7 +69,21 @@ public sealed class DevicesService
         ReadNetwork();
         await RefreshDevicesAsync(initial: true);
         StartWatcher();
+        // Battery isn't one of the watched properties, and headsets report their real level a little after they
+        // connect (the first value is often a placeholder), so re-read it while something is connected.
+        var poll = new System.Windows.Threading.DispatcherTimer(TimeSpan.FromSeconds(30), System.Windows.Threading.DispatcherPriority.Background, (_, _) =>
+        {
+            if (Devices.Any(d => d.Connected)) Refresh();
+        }, _ui);
+        poll.Start();
         Changed?.Invoke();
+    }
+
+    /// <summary>Re-reads a just-connected device a few times, since its battery level arrives late.</summary>
+    private void RereadSoon()
+    {
+        foreach (var s in new[] { 5, 15, 40 })
+            _ = Task.Delay(TimeSpan.FromSeconds(s)).ContinueWith(_ => _ui.InvokeAsync(Refresh), TaskScheduler.Default);
     }
 
     private void ReadNetwork()
@@ -118,6 +136,15 @@ public sealed class DevicesService
         }
     }
 
+    /// <summary>Re-read devices and battery levels now (opening the Devices tab), at most every few seconds.</summary>
+    public void RefreshNow()
+    {
+        if ((DateTime.UtcNow - _lastRefresh).TotalSeconds < 5) return;
+        Refresh();
+    }
+
+    private DateTime _lastRefresh;
+
     /// <summary>Coalesces bursts of watcher events into one refresh.</summary>
     private void Refresh()
     {
@@ -128,6 +155,7 @@ public sealed class DevicesService
 
     private async Task RefreshDevicesAsync(bool initial)
     {
+        _lastRefresh = DateTime.UtcNow;
         try
         {
             var found = new List<DeviceInformation>();
@@ -156,8 +184,11 @@ public sealed class DevicesService
             foreach (var dev in Devices)
             {
                 bool was = _connected.TryGetValue(dev.Name, out var w) && w;
-                if (!initial && dev.Connected && !was) DeviceConnected?.Invoke(dev);
+                if (!initial && dev.Connected && !was) { DeviceConnected?.Invoke(dev); RereadSoon(); }
                 _connected[dev.Name] = dev.Connected;
+                // warn once per drop below 20%; charging back past 25% (or disconnecting) re-arms it
+                if (dev.Connected && dev.Battery is < LowBattery && _warnedLow.Add(dev.Name)) BatteryLow?.Invoke(dev);
+                else if (!dev.Connected || dev.Battery is >= LowBattery + 5) _warnedLow.Remove(dev.Name);
             }
             Changed?.Invoke();
         }

@@ -173,6 +173,28 @@ public sealed class MediaService
         return Color.FromRgb((byte)((rr + m) * 255), (byte)((gg + m) * 255), (byte)((bb + m) * 255));
     }
 
+    /// <summary>Whether the player lets other apps move its position (many browsers and streams don't).</summary>
+    public bool CanSeek
+    {
+        get { try { return Duration > TimeSpan.Zero && _s?.GetPlaybackInfo()?.Controls?.IsPlaybackPositionEnabled == true; } catch { return false; } }
+    }
+
+    public async void Seek(TimeSpan to)
+    {
+        var s = _s;
+        if (s == null) return;
+        to = to < TimeSpan.Zero ? TimeSpan.Zero : to > Duration ? Duration : to;
+        // show it moved right away; the player's timeline update confirms (or corrects) it
+        _pos = to; _posAt = DateTime.UtcNow;
+        Changed?.Invoke();
+        try
+        {
+            var start = s.GetTimelineProperties()?.StartTime ?? TimeSpan.Zero;
+            await s.TryChangePlaybackPositionAsync((start + to).Ticks);
+        }
+        catch { }
+    }
+
     public async void PlayPause() { try { if (_s != null) await _s.TryTogglePlayPauseAsync(); } catch { } }
     public async void Next() { try { if (_s != null) await _s.TrySkipNextAsync(); } catch { } }
     public async void Previous() { try { if (_s != null) await _s.TrySkipPreviousAsync(); } catch { } }

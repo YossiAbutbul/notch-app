@@ -75,7 +75,7 @@ public partial class NotchWindow : Window
     private readonly Dictionary<FrameworkElement, ScaleTransform> _layerScale = new();
     /// <summary>Per layer: scales content with the shape's live width, so it grows inside the notch instead of being cropped.</summary>
     private readonly Dictionary<FrameworkElement, ScaleTransform> _layerFit = new();
-    private SpringParams _grow;
+    private SpringParams _grow, _reveal;
     private int _tabSwap;
     private readonly TranslateTransform _musicSwipe = new();
 
@@ -99,7 +99,7 @@ public partial class NotchWindow : Window
         InitializeComponent();
 
         (_every, _mom) = Feels.Get(cfg.Feel);
-        _grow = GrowOf(_every);
+        _grow = GrowOf(_every); _reveal = RevealOf(_every);
         W = new Spring(cfg.IdleWidth, _every); H = new Spring(34, _every); R = new Spring(17, _every);
         LeanX = new Spring(0, _every); Off = new Spring(0, _every); Press = new Spring(1, SpringParams.Press, 0.0005);
         TabX = new Spring(0, _every); TabW = new Spring(80, _every); Pane = new Spring(0, _every);
@@ -319,7 +319,14 @@ public partial class NotchWindow : Window
         if (changed && _drag == null)
         {
             // like the Dynamic Island: things arriving overshoot a touch, things leaving settle without a bounce
-            if (growing && SystemParameters.ClientAreaAnimation) { W.Kick(_grow, _every); H.Kick(_grow, _every); R.Kick(_grow, _every); }
+            if (growing && SystemParameters.ClientAreaAnimation)
+            {
+                // overshoot only where something arrived on its own (a notification, a pop-up, a song starting): a
+                // hover or click that opens the hub, or a hover that peeks, is calm and settles without a bounce.
+                // A flick still bounces: EndDrag kicks the momentum spring after this.
+                var p = k == "hub" || _hoverNudge ? _reveal : _grow;
+                W.Kick(p, _every); H.Kick(p, _every); R.Kick(p, _every);
+            }
             else if (W.RestoreTo == null) { W.Params = H.Params = R.Params = _every; }
         }
         // collapsing into the line from anything bigger (the hub closing, a pop-up ending): the line draws itself out
@@ -383,6 +390,12 @@ public partial class NotchWindow : Window
 
     /// <summary>The "arrival" spring: a touch of overshoot on top of the chosen feel.</summary>
     private static SpringParams GrowOf(SpringParams every) => new(Math.Min(every.DampingRatio, 1) * 0.84, every.Response * 1.08);
+
+    /// <summary>
+    /// The "reveal" spring for opening on hover or click: near critically damped (a playful feel keeps a hint of its
+    /// bounce), and a touch slower than the everyday spring so a big shape doesn't snap open.
+    /// </summary>
+    private static SpringParams RevealOf(SpringParams every) => new(Math.Clamp(every.DampingRatio + 0.12, 0.94, 1), every.Response * 1.06);
 
     private void Kick()
     {
@@ -485,7 +498,8 @@ public partial class NotchWindow : Window
         if (t == "clip") RenderClip();
         if (t == "notif") RenderNotifs();
         if (t == "shelf") RenderShelf();
-        if (t == "dev") RenderDevices();
+        if (t == "dev") { RenderDevices(); _dev.RefreshNow(); }   // battery levels change without telling us
+        if (t == "now") UpdateVolumeUI();
         if (t == "apps") RenderApps();
         Apply();
     }
@@ -641,6 +655,8 @@ public partial class NotchWindow : Window
         foreach (var b in AllTabButtons) b.Click += (_, _) => SetTab((string)b.Tag);
         GearBtn.Click += (_, _) => SettingsRequested?.Invoke(null);
         PlayBtn.Click += (_, _) => _media.PlayPause();
+        WireVolume();
+        WireSeek();
         NextBtn.Click += (_, _) => _media.Next();
         PrevBtn.Click += (_, _) => _media.Previous();
         TimerPlay.Click += (_, _) => _timer.Toggle();
@@ -1057,8 +1073,12 @@ public partial class NotchWindow : Window
         {
             Canvas.SetLeft(el, (w - el.Width) / 2);
             if (el.Opacity <= 0.001) continue;
-            // content lives inside the shape: while the shape is narrower than the content, the content is scaled to it
-            double f = Math.Clamp(w / el.Width, 0.5, 1);
+            // content lives inside the shape: while the shape is narrower than the content, the content is scaled to it.
+            // Big layers (the hub, the drop zone) barely scale: they keep their real size, anchored at the top centre,
+            // and the growing shape reveals them through its rounded clip, so opening reads as the notch morphing open
+            // rather than a miniature of the hub zooming up. Small pills still fit fully (a pill shrinking into a line).
+            double minFit = el == LHub || el == LDrop ? 0.92 : 0.5;
+            double f = Math.Clamp(w / el.Width, minFit, 1);
             var fit = _layerFit[el];
             if (Math.Abs(fit.ScaleX - f) > 0.0005) fit.ScaleX = fit.ScaleY = f;
         }
@@ -1213,11 +1233,136 @@ public partial class NotchWindow : Window
         var pos = _media.Position;
         var len = _media.Duration;
         if (LineBar.Opacity > 0) UpdateLine();
+        // a live stream (radio, or a player that doesn't say how long it is) has no length: like iOS, a full dim bar
+        // that can't be dragged, a red LIVE, and the time listened so far
+        bool live = len.TotalSeconds < 1;
+        if (_seekAt is { } preview && !live) pos = preview;   // dragging: show where it will jump to
         SongPos.Text = Fmt(pos);
-        // time left, like iOS; a live stream has no length
-        SongLen.Text = len.TotalSeconds < 1 ? "Live" : "-" + Fmt(len - pos > TimeSpan.Zero ? len - pos : TimeSpan.Zero);
-        if (SongBar.Parent is FrameworkElement track && len.TotalSeconds > 0)
+        if (live)
+        {
+            SongLen.Text = "LIVE";
+            SongLen.Foreground = LiveRed;
+            SongLen.FontWeight = FontWeights.SemiBold;
+            SongBar.Opacity = 0.35;
+            if (SongBar.Parent is FrameworkElement lt) SongBar.Width = lt.ActualWidth;
+            SongTrack.Cursor = null;
+            SongTrack.ToolTip = "Live: there's no position to jump to";
+            return;
+        }
+        SongLen.ClearValue(TextBlock.ForegroundProperty);
+        SongLen.ClearValue(TextBlock.FontWeightProperty);
+        SongLen.SetResourceReference(TextBlock.ForegroundProperty, "Dim");
+        SongBar.Opacity = 1;
+        SongLen.Text = "-" + Fmt(len - pos > TimeSpan.Zero ? len - pos : TimeSpan.Zero);   // time left, like iOS
+        if (SongBar.Parent is FrameworkElement track)
             SongBar.Width = Math.Clamp(pos.TotalSeconds / len.TotalSeconds, 0, 1) * track.ActualWidth;
+        bool seek = _media.CanSeek;
+        SongTrack.Cursor = seek ? Cursors.Hand : null;
+        SongTrack.ToolTip = seek ? null : "This player doesn't allow jumping to a position";
+    }
+
+    // ---------------------------------------------------------------- seeking
+
+    private TimeSpan? _seekAt;
+    private static readonly SolidColorBrush LiveRed = Frozen(Color.FromRgb(0xFF, 0x45, 0x3A));
+    private static SolidColorBrush Frozen(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
+
+    private void WireSeek()
+    {
+        SongTrack.MouseLeftButtonDown += (_, e) =>
+        {
+            e.Handled = true;   // not a pull on the notch
+            if (!_media.CanSeek) return;
+            SongTrack.CaptureMouse();
+            _seekAt = SeekPoint(e.GetPosition(SongTrack).X);
+            UpdateNowUI();
+        };
+        SongTrack.MouseMove += (_, e) =>
+        {
+            if (!SongTrack.IsMouseCaptured) return;
+            e.Handled = true;
+            _seekAt = SeekPoint(e.GetPosition(SongTrack).X);
+            UpdateNowUI();
+        };
+        SongTrack.MouseLeftButtonUp += (_, e) =>
+        {
+            if (!SongTrack.IsMouseCaptured) return;
+            e.Handled = true;
+            SongTrack.ReleaseMouseCapture();
+        };
+        // the jump happens on release (or if capture is lost some other way), so a drag doesn't spam the player
+        SongTrack.LostMouseCapture += (_, _) =>
+        {
+            if (_seekAt is { } to) _media.Seek(to);
+            _seekAt = null;
+            UpdateNowUI();
+        };
+    }
+
+    private TimeSpan SeekPoint(double x) => TimeSpan.FromSeconds(Math.Clamp(x / Math.Max(1, SongTrack.ActualWidth), 0, 1) * _media.Duration.TotalSeconds);
+
+    // ---------------------------------------------------------------- player volume
+
+    private void WireVolume()
+    {
+        // Windows reports every change (keys, its flyout, other apps, us) and output switches: no polling
+        _vol.Changed += () => Dispatcher.InvokeAsync(() => { if (!VolTrack.IsMouseCaptured) UpdateVolumeUI(); });
+        _vol.OutputChanged += () => Dispatcher.InvokeAsync(OnOutputChanged);
+        _ = _vol.RefreshNameAsync().ContinueWith(_ => Dispatcher.InvokeAsync(() => { _lastOutput = _vol.OutputName; UpdateVolumeUI(); }), TaskScheduler.Default);
+        MuteBtn.Click += (_, _) => { _vol.Muted = !_vol.Muted; UpdateVolumeUI(); };
+        VolTrack.MouseLeftButtonDown += (_, e) => { e.Handled = true; VolTrack.CaptureMouse(); SetVolumeAt(e.GetPosition(VolTrack).X); };
+        VolTrack.MouseMove += (_, e) => { if (VolTrack.IsMouseCaptured) { e.Handled = true; SetVolumeAt(e.GetPosition(VolTrack).X); } };
+        VolTrack.MouseLeftButtonUp += (_, e) => { e.Handled = true; VolTrack.ReleaseMouseCapture(); };
+        VolRow.MouseWheel += (_, e) =>
+        {
+            e.Handled = true;
+            SetVolume(Math.Round((_vol.Level + Math.Sign(e.Delta) * 0.04) * 50) / 50);
+        };
+    }
+
+    private void SetVolumeAt(double x) => SetVolume(Math.Round(Math.Clamp(x / VolTrack.ActualWidth, 0, 1) * 100) / 100);
+
+    private void SetVolume(double level)
+    {
+        if (!_vol.Available) return;
+        _vol.Muted = false;
+        _vol.Level = level;
+        VolFill.Snap(Math.Clamp(level, 0, 1));   // the volume pop-up starts from here next time
+        UpdateVolumeUI();
+    }
+
+    private void UpdateVolumeUI()
+    {
+        bool on = _vol.Available;
+        VolRow.Visibility = on ? Visibility.Visible : Visibility.Hidden;
+        if (!on) return;
+        bool muted = _vol.Muted;
+        double level = Math.Clamp(_vol.Level, 0, 1);
+        VolBar.Width = (muted ? 0 : level) * VolTrack.Width;
+        MuteIcon.Kind = muted || level < 0.005 ? "mute" : "speaker";
+        // which output this controls, so a switch to headphones (or back to speakers) is never a surprise
+        string where = _vol.OutputName is { Length: > 0 } n ? $"{n} · " : "";
+        string tip = muted ? $"{where}muted. Click to unmute" : $"{where}{(int)Math.Round(level * 100)}%. Click to mute";
+        MuteBtn.ToolTip = tip;
+        VolTrack.ToolTip = tip;
+    }
+
+    private string? _lastOutput;
+
+    /// <summary>The default output changed (headphones connected or disconnected, or chosen in Windows).</summary>
+    private async void OnOutputChanged()
+    {
+        _vol.Rebind();
+        _lastOutput ??= _vol.OutputName;
+        var name = await _vol.RefreshNameAsync();
+        UpdateVolumeUI();
+        if (name == null || name == _lastOutput) return;
+        _lastOutput = name;
+        if (_toast?.Type == "device") return;   // "WH-1000XM4 connected" already says it
+        var lower = name.ToLowerInvariant();
+        string icon = lower.Contains("headphone") || lower.Contains("headset") ? "headphones" : lower.Contains("bud") ? "buds" : "speaker";
+        ShowToast(new("output", 300, Color.FromRgb(110, 165, 255), icon, Color.FromRgb(0x2A, 0x2C, 0x33), Colors.White,
+            name, $"{(int)Math.Round(_vol.Level * 100)}%", Color.FromRgb(0xF4, 0xF5, 0xF8), false, 2200));
     }
 
     private void UpdateTimerUI()
@@ -1350,7 +1495,7 @@ public partial class NotchWindow : Window
     public void ApplySettings()
     {
         (_every, _mom) = Feels.Get(_cfg.Feel);
-        _grow = GrowOf(_every);
+        _grow = GrowOf(_every); _reveal = RevealOf(_every);
         foreach (var s in new[] { W, H, R, LeanX, Off, TabX, TabW, Pane, VolFill }) { s.Params = _every; s.RestoreTo = null; }
         _clip.SkipSecrets = _cfg.ClipSkipSecrets;
         if (_clip.Max != _cfg.ClipMax) _clip.ApplyMax(_cfg.ClipMax);

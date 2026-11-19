@@ -44,9 +44,10 @@ public partial class NotchWindow
         if (!_notifOpen) _notifTimer.Start();   // one you're reading stays until you move away
         if (_key == "notif" && !first) { _key = ""; }   // a second one arriving re-runs the hand-off
         Apply();
-        // it lands with momentum: taller first, a touch narrow, then settles
+        // it lands with momentum: taller first, a touch narrow, then settles. One replacing another gets a smaller
+        // nudge down, so a new message is felt as new even though the shape barely changes.
         Kick();
-        if (_cfg.ImpactBounce && first) { H.Velocity += 460; W.Velocity -= 320; }
+        if (_cfg.ImpactBounce) { if (first) { H.Velocity += 460; W.Velocity -= 320; } else H.Velocity += 220; }
     }
 
     private void FillNotif(NotifItem n)
@@ -114,8 +115,21 @@ public partial class NotchWindow
             _notifTimer.Interval = TimeSpan.FromSeconds(Math.Min(3, _cfg.NotifSeconds));
             _notifTimer.Start();
         }
+        // no momentum kick: opening to read is a calm reveal (Apply picks the reveal spring while hovered).
+        // The extra text materialises once the shape has started making room for it, instead of popping in.
+        if (open && SystemParameters.ClientAreaAnimation)
+            foreach (var el in new FrameworkElement[] { NotifBody, NotifHint })
+            {
+                el.Opacity = 0;
+                el.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, TimeSpan.FromMilliseconds(220))
+                {
+                    BeginTime = TimeSpan.FromMilliseconds(el == NotifHint ? 140 : 90),
+                    EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut },
+                });
+            }
+        else
+            foreach (var el in new FrameworkElement[] { NotifBody, NotifHint }) { el.BeginAnimation(OpacityProperty, null); el.Opacity = 1; }
         Apply();
-        if (open && SystemParameters.ClientAreaAnimation) Kick();
     }
 
     /// <summary>The text parts of a notification, on one line.</summary>
