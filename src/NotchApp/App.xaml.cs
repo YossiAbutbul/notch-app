@@ -35,6 +35,13 @@ public partial class App : Application
             u.Show();
             return;
         }
+        // Settings → About → Install update downloads the new Notch.exe and runs it with --update: replace the installed
+        // copy without asking again (keeping the desktop shortcut and start-up choice as they are), then open it
+        if (!Installer.IsRunningInstalled && Installer.IsInstalled && e.Args.Contains("--update"))
+        {
+            SilentUpdate();
+            return;
+        }
         if (!Installer.IsRunningInstalled && !e.Args.Contains("--portable"))
         {
             var w = new SetupWindow(Installer.IsInstalled ? SetupMode.Update : SetupMode.Install);
@@ -46,6 +53,24 @@ public partial class App : Application
         }
 #endif
         StartApp(e.Args);
+    }
+
+    private async void SilentUpdate()
+    {
+        try
+        {
+            await Installer.InstallAsync(Installer.HasDesktopShortcut, AppSettings.Load().StartWithWindows, new Progress<string>(_ => { }));
+            Installer.LaunchInstalled();
+            Shutdown();
+        }
+        catch (Exception ex)
+        {
+            // fall back to the usual Update window, which shows what went wrong and lets you retry
+            Log.Error("Update", ex);
+            var w = new SetupWindow(SetupMode.Update);
+            w.Closed += (_, _) => Shutdown();
+            w.Show();
+        }
     }
 
     /// <summary>Media sessions, notifications and the other WinRT APIs Notch uses need Windows 10 2004 (build 19041).</summary>

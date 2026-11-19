@@ -58,6 +58,7 @@ public sealed class Icon : FrameworkElement
         ["terminal"] = ("M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2z M7 9l3 3-3 3 M12 15h5", false),
         // drag handle: two columns of three dots
         ["grip"] = ("M8 6a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0 M13.6 6a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0 M8 12a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0 M13.6 12a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0 M8 18a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0 M13.6 18a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0", true),
+        ["info"] = ("M12 3a9 9 0 1 0 0.01 0z M12 11v5.5 M12 7.6v0.2", false),
         ["battery"] = ("M3 8h15a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-15a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1z M22 11v2", false),
     };
     private static readonly Dictionary<string, Geometry> Cache = new();

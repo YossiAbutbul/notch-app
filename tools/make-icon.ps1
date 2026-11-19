@@ -3,6 +3,7 @@
 # Output: src\NotchApp\Assets\Notch.ico (classic 32-bit entries up to 128 px, PNG at 256 px) and Notch-256.png.
 param([string]$OutDir = (Join-Path $PSScriptRoot "..\src\NotchApp\Assets"))
 
+# (C# 5: this runs on Windows PowerShell's built-in compiler, so no newer syntax such as => members)
 Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @'
 using System;
 using System.Drawing;
@@ -12,60 +13,86 @@ using System.IO;
 
 public static class NotchIcon
 {
-    static GraphicsPath Round(float x, float y, float w, float h, float r)
+    /// <summary>A squircle: continuous curvature all the way round (a superellipse), the shape of today's app icons.</summary>
+    static GraphicsPath Squircle(float x, float y, float w, float h)
     {
-        var p = new GraphicsPath(); float d = 2 * r;
-        p.AddArc(x, y, d, d, 180, 90); p.AddArc(x + w - d, y, d, d, 270, 90);
-        p.AddArc(x + w - d, y + h - d, d, d, 0, 90); p.AddArc(x, y + h - d, d, d, 90, 90);
-        p.CloseFigure(); return p;
+        const double n = 5.0;
+        var p = new GraphicsPath(); int steps = 360; var pts = new PointF[steps];
+        float cx = x + w / 2, cy = y + h / 2, a = w / 2, b = h / 2;
+        for (int i = 0; i < steps; i++)
+        {
+            double t = 2 * Math.PI * i / steps, c = Math.Cos(t), s = Math.Sin(t);
+            pts[i] = new PointF(cx + (float)(a * Math.Sign(c) * Math.Pow(Math.Abs(c), 2 / n)), cy + (float)(b * Math.Sign(s) * Math.Pow(Math.Abs(s), 2 / n)));
+        }
+        p.AddPolygon(pts); return p;
+    }
+
+    static GraphicsPath Capsule(float x, float y, float w, float h)
+    {
+        var p = new GraphicsPath();
+        p.AddArc(x, y, h, h, 90, 180); p.AddArc(x + w - h, y, h, h, 270, 180); p.CloseFigure(); return p;
+    }
+
+    /// <summary>
+    /// The icon, "island on colour": a squircle in iOS indigo running into violet, lit from above, and on it the notch,
+    /// a black capsule near the top with its camera-lens dot, casting a soft shadow. Drawn on a 1024 px canvas and
+    /// scaled down smoothly. Small sizes (24 px and below) lose the dot and the shadow and get a bolder capsule, so
+    /// they stay crisp in the tray and title bar.
+    /// </summary>
+    static void Paint(Graphics g, float S, bool small)
+    {
+        float i = S * (small ? 0.03f : 0.06f), w = S - 2 * i;
+        using (var tile = Squircle(i, i, w, w))
+        {
+            using (var b = new LinearGradientBrush(new PointF(i, i), new PointF(i + w, i + w), Color.FromArgb(0x5E, 0x5C, 0xE6), Color.FromArgb(0xBF, 0x5A, 0xF2)))
+                g.FillPath(b, tile);
+            // light from above, gone by just past the middle
+            using (var b = new LinearGradientBrush(new PointF(0, i - 1), new PointF(0, i + w + 1), Color.FromArgb(70, 255, 255, 255), Color.FromArgb(0, 255, 255, 255)))
+            {
+                b.Blend = new Blend { Positions = new[] { 0f, 0.55f, 1f }, Factors = new[] { 0f, 1f, 1f } };
+                g.FillPath(b, tile);
+            }
+        }
+        float pw = w * (small ? 0.66f : 0.56f), ph = w * (small ? 0.26f : 0.19f), px = (S - pw) / 2, py = i + w * (small ? 0.28f : 0.3f);
+        if (!small)
+            for (int k = 8; k >= 1; k--)
+            {
+                float s = S * 0.006f * k;
+                using (var sh = Capsule(px - s, py - s * 0.2f + S * 0.03f, pw + 2 * s, ph + 2 * s))
+                using (var b = new SolidBrush(Color.FromArgb(10, 20, 0, 60))) g.FillPath(b, sh);
+            }
+        using (var pill = Capsule(px, py, pw, ph))
+        using (var b = new LinearGradientBrush(new PointF(0, py - 1), new PointF(0, py + ph + 1), Color.FromArgb(28, 28, 32), Color.FromArgb(2, 2, 4))) g.FillPath(b, pill);
+        if (!small)
+        {
+            float d = ph * 0.34f;
+            using (var b = new SolidBrush(Color.FromArgb(0x26, 0x2A, 0x4A))) g.FillEllipse(b, px + pw - ph * 0.5f - d / 2, py + (ph - d) / 2, d, d);
+        }
     }
 
     public static Bitmap Draw(int S)
     {
-        var bmp = new Bitmap(S, S, PixelFormat.Format32bppArgb);
-        using (var g = Graphics.FromImage(bmp))
+        const int big = 1024;
+        using (var hi = new Bitmap(big, big, PixelFormat.Format32bppArgb))
         {
-            g.SmoothingMode = SmoothingMode.AntiAlias; g.PixelOffsetMode = PixelOffsetMode.HighQuality;
-            g.Clear(Color.Transparent);
-            // tile: a rounded square with breathing room, like Windows 11 app icons; iOS indigo into violet
-            float inset = Math.Max(1f, (float)Math.Round(S * 0.055)), w = S - 2 * inset;
-            using (var tile = Round(inset, inset, w, w, w * 0.235f))
+            using (var g = Graphics.FromImage(hi))
             {
-                using (var grad = new LinearGradientBrush(new PointF(inset, inset), new PointF(inset + w, inset + w), Color.FromArgb(0x5E, 0x5C, 0xE6), Color.FromArgb(0xB1, 0x4E, 0xF0)))
-                    g.FillPath(grad, tile);
-                // light from above, fading out by the middle (spans the whole tile: GDI+ gradients repeat past their ends)
-                using (var sheen = new LinearGradientBrush(new PointF(0, inset - 1), new PointF(0, inset + w + 1), Color.White, Color.White))
-                {
-                    sheen.InterpolationColors = new ColorBlend { Positions = new[] { 0f, 0.6f, 1f },
-                        Colors = new[] { Color.FromArgb(60, 255, 255, 255), Color.FromArgb(0, 255, 255, 255), Color.FromArgb(0, 255, 255, 255) } };
-                    g.FillPath(sheen, tile);
-                }
-                if (S >= 32) using (var edge = new Pen(Color.FromArgb(46, 255, 255, 255), Math.Max(1f, S / 128f))) g.DrawPath(edge, tile);
+                g.SmoothingMode = SmoothingMode.AntiAlias; g.PixelOffsetMode = PixelOffsetMode.HighQuality; g.Clear(Color.Transparent);
+                Paint(g, big, S <= 24);
             }
-            // the notch: a black pill near the top with a soft shadow under it
-            float pw = w * 0.64f, ph = Math.Max(3f, w * 0.215f), px = (S - pw) / 2, py = inset + w * 0.23f;
-            if (S >= 24)
-                for (int k = 5; k >= 1; k--)
-                {
-                    float sp = S * 0.012f * k;
-                    using (var sh = Round(px - sp, py - sp * 0.3f + S * 0.025f, pw + 2 * sp, ph + 2 * sp, (ph + 2 * sp) / 2))
-                    using (var b = new SolidBrush(Color.FromArgb(16, 25, 0, 70))) g.FillPath(b, sh);
-                }
-            using (var pill = Round(px, py, pw, ph, ph / 2))
-            using (var b = new SolidBrush(Color.FromArgb(6, 6, 9))) g.FillPath(b, pill);
-            // inside it: album art at the leading end (when there's room), the timer's orange dot at the trailing end
-            float dot = ph * 0.44f;
-            using (var b = new SolidBrush(Color.FromArgb(0xFF, 0x9F, 0x0A)))
-                g.FillEllipse(b, px + pw - ph / 2 - dot / 2, py + (ph - dot) / 2, dot, dot);
-            if (S >= 40)
+            var bmp = new Bitmap(S, S, PixelFormat.Format32bppArgb);
+            using (var g = Graphics.FromImage(bmp))
             {
-                float a = ph * 0.52f;
-                using (var art = Round(px + ph / 2 - a / 2, py + (ph - a) / 2, a, a, a * 0.28f))
-                using (var b = new LinearGradientBrush(new PointF(0, py), new PointF(0, py + ph), Color.FromArgb(0xFF, 0x6B, 0x8A), Color.FromArgb(0xFF, 0x37, 0x5F)))
-                    g.FillPath(b, art);
+                g.InterpolationMode = InterpolationMode.HighQualityBicubic; g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                g.SmoothingMode = SmoothingMode.AntiAlias; g.Clear(Color.Transparent);
+                using (var attr = new ImageAttributes())
+                {
+                    attr.SetWrapMode(WrapMode.TileFlipXY);   // no grey fringe from sampling past the edge
+                    g.DrawImage(hi, new Rectangle(0, 0, S, S), 0, 0, big, big, GraphicsUnit.Pixel, attr);
+                }
             }
+            return bmp;
         }
-        return bmp;
     }
 
     /// <summary>32-bit DIB entry (what every Windows API reads), or PNG for 256 px.</summary>

@@ -98,6 +98,8 @@ public sealed class NotificationsService
             string app = n.AppInfo?.DisplayInfo?.DisplayName ?? "App";
             string appId = n.AppInfo?.AppUserModelId ?? "";
             if (string.Equals(app, "Notch", StringComparison.OrdinalIgnoreCase)) return null;
+            // which app id each sender uses, once per sender (never the message): clicking opens the app by this id
+            if (_loggedSenders.Add(app + "|" + appId)) Log.Write($"Notifications: sender '{app}' has app id '{appId}'");
             string title = texts.Count > 0 ? texts[0] : app;
             string body = string.Join("\n", texts.Skip(1));   // one line per text part; the compact view joins them with " · "
             var (logo, tint) = await LogoAsync(n.AppInfo, app);
@@ -166,11 +168,70 @@ public sealed class NotificationsService
         catch { return null; }
     }
 
-    /// <summary>Bring the app that sent it to the front (works for apps registered with Windows).</summary>
+    private readonly HashSet<string> _loggedSenders = new(StringComparer.OrdinalIgnoreCase);
+
+    // browsers post web notifications under their own app id; opening that id starts an empty browser window
+    private static readonly (string IdPrefix, string Process)[] Browsers =
+    [
+        ("Chrome", "chrome"), ("MSEdge", "msedge"), ("Brave", "brave"), ("Opera", "opera"), ("308046B0AF4A39CB", "firefox"), ("Firefox", "firefox"), ("Vivaldi", "vivaldi"),
+    ];
+
+    /// <summary>
+    /// Bring the app that sent it to the front. Apps registered with Windows open by their app id. A notification that
+    /// came through a browser opens the installed app of the same name when there is one (Claude rather than Chrome),
+    /// and otherwise brings the browser's existing window forward instead of starting an empty one.
+    /// </summary>
     public static void OpenApp(NotifItem n)
     {
         if (string.IsNullOrEmpty(n.AppId)) return;
-        try { Process.Start(new ProcessStartInfo("explorer.exe", $"shell:AppsFolder\\{n.AppId}") { UseShellExecute = true }); } catch { }
+        // a web app installed from a browser (Chrome._crx_…) is a real app: open it as one
+        var browser = n.AppId.Contains("_crx_", StringComparison.OrdinalIgnoreCase) ? default
+            : Browsers.FirstOrDefault(b => n.AppId.StartsWith(b.IdPrefix, StringComparison.OrdinalIgnoreCase));
+        if (browser.Process != null)
+        {
+            if (AppIdByName(n.App) is { } installed && !installed.StartsWith(browser.IdPrefix, StringComparison.OrdinalIgnoreCase)) { OpenById(installed); return; }
+            if (FocusRunning(browser.Process)) return;
+        }
+        OpenById(n.AppId);
+    }
+
+    private static void OpenById(string appId)
+    {
+        try { Process.Start(new ProcessStartInfo("explorer.exe", $"shell:AppsFolder\\{appId}") { UseShellExecute = true }); } catch { }
+    }
+
+    /// <summary>The app id of an installed app (Start menu's All apps) with exactly this name, if any.</summary>
+    private static string? AppIdByName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return null;
+        try
+        {
+            var type = Type.GetTypeFromProgID("Shell.Application");
+            if (type == null) return null;
+            dynamic shell = Activator.CreateInstance(type)!;
+            foreach (dynamic item in shell.NameSpace("shell:AppsFolder").Items())
+                if (string.Equals((string)item.Name, name, StringComparison.OrdinalIgnoreCase)) return (string)item.Path;
+        }
+        catch (Exception ex) { Log.Error("Find app by name", ex); }
+        return null;
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr h);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr h, int cmd);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool IsIconic(IntPtr h);
+
+    /// <summary>Bring an already-open window of this program to the front; false when none is open.</summary>
+    private static bool FocusRunning(string process)
+    {
+        try
+        {
+            var w = Process.GetProcessesByName(process).Select(p => p.MainWindowHandle).FirstOrDefault(h => h != IntPtr.Zero);
+            if (w == IntPtr.Zero) return false;
+            if (IsIconic(w)) ShowWindow(w, 9 /* SW_RESTORE */);
+            SetForegroundWindow(w);
+            return true;
+        }
+        catch { return false; }
     }
 
     public void Clear() { Recent.Clear(); Changed?.Invoke(); }

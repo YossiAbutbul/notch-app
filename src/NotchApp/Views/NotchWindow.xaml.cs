@@ -657,6 +657,8 @@ public partial class NotchWindow : Window
         PlayBtn.Click += (_, _) => _media.PlayPause();
         WireVolume();
         WireSeek();
+        SrcPrev.Click += (_, _) => SwitchSource(-1);
+        SrcNext.Click += (_, _) => SwitchSource(1);
         NextBtn.Click += (_, _) => _media.Next();
         PrevBtn.Click += (_, _) => _media.Previous();
         TimerPlay.Click += (_, _) => _timer.Toggle();
@@ -1220,6 +1222,10 @@ public partial class NotchWindow : Window
         foreach (var b in _barsS.Concat(_barsL)) b.Fill = barBrush;
         SongTitle.Text = _media.Title;
         SongArtist.Text = _media.Artist;
+        // several apps or sites with something to play: say which one this is, with arrows to the others
+        int sources = _media.SourceCount;
+        SourceRow.Visibility = sources > 1 ? Visibility.Visible : Visibility.Collapsed;
+        if (sources > 1) UpdateSourceDots(sources, _media.SourceIndex);
         PlayIcon.Kind = _media.IsPlaying ? "pause" : "play";
         MusicCard.Visibility = _media.HasSession ? Visibility.Visible : Visibility.Collapsed;
         NoMusic.Visibility = _media.HasSession ? Visibility.Collapsed : Visibility.Visible;
@@ -1259,6 +1265,50 @@ public partial class NotchWindow : Window
         bool seek = _media.CanSeek;
         SongTrack.Cursor = seek ? Cursors.Hand : null;
         SongTrack.ToolTip = seek ? null : "This player doesn't allow jumping to a position";
+    }
+
+    // ---------------------------------------------------------------- choosing the source
+
+    private readonly TranslateTransform _cardShift = new();
+
+    /// <summary>
+    /// The page indicator: one dot per source, the showing one stretched into a short bright pill. When the choice
+    /// changes the pill travels: the old one narrows while the new one widens, from their current widths.
+    /// </summary>
+    private void UpdateSourceDots(int count, int index)
+    {
+        SourceLabel.Text = _media.SourceName;
+        SourceRow.ToolTip = $"{_media.SourceName}: {index + 1} of {count}";
+        while (SourceDots.Children.Count < count)
+            SourceDots.Children.Add(new Border { Width = 5, Height = 5, CornerRadius = new CornerRadius(2.5), Margin = new Thickness(2, 0, 2, 0), Background = new SolidColorBrush(Color.FromArgb(0x55, 0xF4, 0xF5, 0xF8)) });
+        while (SourceDots.Children.Count > count) SourceDots.Children.RemoveAt(SourceDots.Children.Count - 1);
+        bool motion = SystemParameters.ClientAreaAnimation;
+        for (int i = 0; i < count; i++)
+        {
+            var dot = (Border)SourceDots.Children[i];
+            bool on = i == index;
+            double w = on ? 13 : 5;
+            var c = on ? Color.FromRgb(0xF4, 0xF5, 0xF8) : Color.FromArgb(0x55, 0xF4, 0xF5, 0xF8);
+            if (!motion) { dot.BeginAnimation(WidthProperty, null); dot.Width = w; dot.Background = new SolidColorBrush(c); continue; }
+            var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+            dot.BeginAnimation(WidthProperty, new DoubleAnimation(w, TimeSpan.FromMilliseconds(260)) { EasingFunction = ease });
+            if (dot.Background is SolidColorBrush b && !b.IsFrozen) b.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(c, TimeSpan.FromMilliseconds(200)));
+        }
+    }
+
+    /// <summary>
+    /// Show the next or previous app or site that has something to play. The player slides in from the side of the
+    /// arrow you pressed, as the next track does when you swipe, so where it came from is never in doubt.
+    /// </summary>
+    private void SwitchSource(int dir)
+    {
+        _media.SwitchSource(dir);
+        if (!SystemParameters.ClientAreaAnimation) return;
+        MusicCard.RenderTransform = _cardShift;
+        var ease = new QuarticEase { EasingMode = EasingMode.EaseOut };
+        // from where it is now, so pressing again mid-slide just restarts the arrival
+        _cardShift.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(dir * 28, 0, TimeSpan.FromMilliseconds(320)) { EasingFunction = ease });
+        MusicCard.BeginAnimation(OpacityProperty, new DoubleAnimation(0.2, 1, TimeSpan.FromMilliseconds(240)) { EasingFunction = ease });
     }
 
     // ---------------------------------------------------------------- seeking

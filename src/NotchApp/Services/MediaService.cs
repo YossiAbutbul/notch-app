@@ -44,21 +44,40 @@ public sealed class MediaService
         try
         {
             _mgr = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
-            _mgr.CurrentSessionChanged += (_, _) => _ui.InvokeAsync(Attach);
+            // follow what Windows says is current, unless you picked a source yourself (it stays while it exists)
+            _mgr.CurrentSessionChanged += (_, _) => _ui.InvokeAsync(() => { if (_pinned == null) Attach(); else Changed?.Invoke(); });
+            _mgr.SessionsChanged += (_, _) => _ui.InvokeAsync(Attach);
             Attach();
         }
         catch { /* no media session support: the music view simply never appears */ }
     }
 
+    private void DetachSession()
+    {
+        if (_s == null) return;
+        _s.MediaPropertiesChanged -= OnProps;
+        _s.PlaybackInfoChanged -= OnPlayback;
+        _s.TimelinePropertiesChanged -= OnTimeline;
+        _s = null;
+    }
+
+    /// <summary>What to show: the source you picked, while it exists; otherwise what Windows says is current.</summary>
+    private GlobalSystemMediaTransportControlsSession? Choose()
+    {
+        var all = Sessions();
+        if (_pinned != null)
+        {
+            if (all.Contains(_pinned)) return _pinned;
+            _pinned = null;
+        }
+        return _mgr?.GetCurrentSession() ?? all.FirstOrDefault();
+    }
+
     private void Attach()
     {
-        if (_s != null)
-        {
-            _s.MediaPropertiesChanged -= OnProps;
-            _s.PlaybackInfoChanged -= OnPlayback;
-            _s.TimelinePropertiesChanged -= OnTimeline;
-        }
-        _s = _mgr?.GetCurrentSession();
+        var chosen = Choose();
+        DetachSession();
+        _s = chosen;
         if (_s == null)
         {
             Title = Artist = ""; Art = null; IsPlaying = false;
@@ -103,7 +122,9 @@ public sealed class MediaService
         {
             var p = await s.TryGetMediaPropertiesAsync();
             if (id != _refreshId) return;
-            Title = p?.Title ?? "";
+            // a source that doesn't say what's playing still counts: it's named by its app ("Chrome") instead of a
+            // song, so it never looks like nothing is playing (or hides the arrows to the other sources)
+            Title = p?.Title is { Length: > 0 } t ? t : SourceName;
             Artist = p?.Artist ?? "";
             BitmapSource? art = null;
             Color col = ArtColor;
@@ -171,6 +192,52 @@ public sealed class MediaService
             < 240 => (0.0, x, c), < 300 => (x, 0.0, c), _ => (c, 0.0, x),
         };
         return Color.FromRgb((byte)((rr + m) * 255), (byte)((gg + m) * 255), (byte)((bb + m) * 255));
+    }
+
+    // ---------------------------------------------------------------- several sources
+
+    private GlobalSystemMediaTransportControlsSession? _pinned;
+
+    private IReadOnlyList<GlobalSystemMediaTransportControlsSession> Sessions()
+    {
+        try { return _mgr?.GetSessions() ?? (IReadOnlyList<GlobalSystemMediaTransportControlsSession>)[]; }
+        catch { return []; }
+    }
+
+    /// <summary>How many apps have something to play right now (a browser counts once: Windows sees its latest tab).</summary>
+    public int SourceCount => Sessions().Count;
+
+    /// <summary>Which of them is showing, from 0.</summary>
+    public int SourceIndex
+    {
+        get { var all = Sessions(); for (int i = 0; i < all.Count; i++) if (all[i] == _s) return i; return 0; }
+    }
+
+    /// <summary>The showing source's app, in a short readable form: "Chrome", "Spotify", "Edge".</summary>
+    public string SourceName => NameOf(_s?.SourceAppUserModelId ?? "");
+
+    /// <summary>Show the next (+1) or previous (−1) source. The choice sticks while that source exists.</summary>
+    public void SwitchSource(int dir)
+    {
+        var all = Sessions();
+        if (all.Count < 2) return;
+        _pinned = all[((SourceIndex + dir) % all.Count + all.Count) % all.Count];
+        Attach();
+    }
+
+    private static string NameOf(string aumid)
+    {
+        if (aumid.Length == 0) return "";
+        string id = aumid.Contains('!') ? aumid[(aumid.LastIndexOf('!') + 1)..] : aumid;   // Store apps: Package!App
+        if (id.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) id = id[..^4];
+        return id.ToLowerInvariant() switch
+        {
+            "msedge" => "Edge",
+            "308046b0af4a39cb" or "firefox" => "Firefox",
+            "chrome" => "Chrome",
+            "zunemusic" or "microsoft.zunemusic" => "Media Player",
+            _ => id.Length > 0 ? char.ToUpperInvariant(id[0]) + id[1..] : aumid,
+        };
     }
 
     /// <summary>Whether the player lets other apps move its position (many browsers and streams don't).</summary>

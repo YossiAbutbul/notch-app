@@ -210,6 +210,22 @@
                             </StackPanel>
                             <StackPanel x:Name="BarsLarge" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top" Margin="0,2,0,0" Height="18"/>
                           </Grid>
+                          <!-- more than one app or site has something to play: which one this is, and arrows to the others -->
+                          <!-- a small glass capsule: which app this is, a page indicator (like iOS's dots, the current one a
+                               longer pill), and round arrow buttons at its ends -->
+                          <Border x:Name="SourceRow" Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Left" Visibility="Collapsed"
+                                  CornerRadius="12" Background="#14FFFFFF" BorderBrush="#1FFFFFFF" BorderThickness="0,1,0,0" Padding="2">
+                            <StackPanel Orientation="Horizontal">
+                              <Button x:Name="SrcPrev" Style="{StaticResource Press}" Width="20" Height="20" ToolTip="Previous source" Foreground="#CCF4F5F8">
+                                <c:Icon Kind="chev" Width="11" Height="11" StrokeWidth="2.6"/>
+                              </Button>
+                              <TextBlock x:Name="SourceLabel" Foreground="#E6F4F5F8" FontSize="11.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="6,0,7,1"/>
+                              <StackPanel x:Name="SourceDots" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                              <Button x:Name="SrcNext" Style="{StaticResource Press}" Width="20" Height="20" ToolTip="Next source" Foreground="#CCF4F5F8">
+                                <c:Icon Kind="chev" Width="11" Height="11" StrokeWidth="2.6" RenderTransformOrigin="0.5,0.5"><c:Icon.RenderTransform><ScaleTransform ScaleX="-1"/></c:Icon.RenderTransform></c:Icon>
+                              </Button>
+                            </StackPanel>
+                          </Border>
                           <Grid Grid.Row="2">
                             <Grid.ColumnDefinitions><ColumnDefinition Width="38"/><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
                             <TextBlock x:Name="SongPos" Foreground="{StaticResource Dim}" FontSize="11" VerticalAlignment="Center" Text="0:00"/>
